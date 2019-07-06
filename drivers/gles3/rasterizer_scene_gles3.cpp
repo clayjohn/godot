@@ -3349,8 +3349,8 @@ void RasterizerSceneGLES3::_render_mrts(Environment *env, const CameraMatrix &p_
 
 		//copy from depth, convert to linear
 		GLint ss[2];
-		ss[0] = storage->frame.current_rt->buffers.width;
-		ss[1] = storage->frame.current_rt->buffers.height;
+		ss[0] = storage->frame.current_rt->width;
+		ss[1] = storage->frame.current_rt->height;
 
 		for (int i = 0; i < storage->frame.current_rt->effects.ssao.depth_mipmap_fbos.size(); i++) {
 
@@ -3376,8 +3376,8 @@ void RasterizerSceneGLES3::_render_mrts(Environment *env, const CameraMatrix &p_
 
 			_copy_screen(true);
 		}
-		ss[0] = storage->frame.current_rt->buffers.width;
-		ss[1] = storage->frame.current_rt->buffers.height;
+		ss[0] = storage->frame.current_rt->width;
+		ss[1] = storage->frame.current_rt->height;
 
 		glViewport(0, 0, ss[0], ss[1]);
 
@@ -3483,7 +3483,7 @@ void RasterizerSceneGLES3::_render_mrts(Environment *env, const CameraMatrix &p_
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, storage->frame.current_rt->buffers.fbo);
 		glReadBuffer(GL_COLOR_ATTACHMENT0);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, storage->frame.current_rt->effects.mip_maps[0].sizes[0].fbo);
-		glBlitFramebuffer(0, 0, storage->frame.current_rt->buffers.width, storage->frame.current_rt->buffers.height, 0, 0, storage->frame.current_rt->width, storage->frame.current_rt->height, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+		glBlitFramebuffer(0, 0, storage->frame.current_rt->buffers.width, storage->frame.current_rt->buffers.height, 0, 0, storage->frame.current_rt->buffers.width, storage->frame.current_rt->buffers.height, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
