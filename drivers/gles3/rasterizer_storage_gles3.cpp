@@ -6959,7 +6959,7 @@ void RasterizerStorageGLES3::_render_target_allocate(RenderTarget *rt) {
 	}
 
 	/* BACK FBO */
-	if (!rt->flags[RENDER_TARGET_NO_3D] && (!rt->flags[RENDER_TARGET_NO_3D_EFFECTS] || rt->msaa != VS::VIEWPORT_MSAA_DISABLED)) {
+	if (!rt->flags[RENDER_TARGET_NO_3D] && (!rt->flags[RENDER_TARGET_NO_3D_EFFECTS] || rt->msaa != VS::VIEWPORT_MSAA_DISABLED || config.shrink_3d)) {
 
 		rt->buffers.active = true;
 
@@ -6978,6 +6978,11 @@ void RasterizerStorageGLES3::_render_target_allocate(RenderTarget *rt) {
 			rt->use_shrink_3d = true;
 			rt->buffers.width = rt->width / SHRINK_3D;
 			rt->buffers.height = rt->height / SHRINK_3D;
+
+			if (msaa != 0) {
+				WARN_PRINTS("MSAA cannot be used with shrink_3d, falling back to 0 samples");
+				msaa = 0;
+			}
 		}
 
 		//regular fbo
