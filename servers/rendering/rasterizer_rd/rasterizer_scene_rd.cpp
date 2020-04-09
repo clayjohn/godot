@@ -4110,7 +4110,7 @@ RasterizerSceneRD::RasterizerSceneRD(RasterizerStorageRD *p_storage) {
 	{
 		// default material and shader for sky shader
 		sky_shader.default_shader = storage->shader_create();
-		storage->shader_set_code(sky_shader.default_shader, "shader_type sky; void fragment() { COLOR = mix(vec3(0.3), vec3(0.2, 0.4, 0.9), smoothstep(0.0, 0.05, EYEDIR.y)); } \n");
+		storage->shader_set_code(sky_shader.default_shader, "shader_type sky; void fragment() { COLOR = vec3(0.0); } \n");
 		sky_shader.default_material = storage->material_create();
 		storage->material_set_shader(sky_shader.default_material, sky_shader.default_shader);
 
