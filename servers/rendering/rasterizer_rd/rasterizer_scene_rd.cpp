@@ -5242,7 +5242,7 @@ void RasterizerSceneRD::_render_buffers_post_process_and_tonemap(RID p_render_bu
 	if (can_use_effects && env && env->glow_enabled) {
 		/* see that blur textures are allocated */
 
-		if (rb->blur[0].texture.is_null()) {
+		if (rb->blur[1].texture.is_null()) {
 			_allocate_blur_textures(rb);
 			_render_buffers_uniform_set_changed(p_render_buffers);
 		}
@@ -5269,9 +5269,9 @@ void RasterizerSceneRD::_render_buffers_post_process_and_tonemap(RID p_render_bu
 				if (env->auto_exposure && rb->luminance.current.is_valid()) {
 					luminance_texture = rb->luminance.current;
 				}
-				storage->get_effects()->gaussian_glow(rb->texture, rb->blur[0].mipmaps[i + 1].texture, rb->blur[1].mipmaps[i].texture, Size2i(vp_w, vp_h), env->glow_strength, glow_high_quality, true, env->glow_hdr_luminance_cap, env->exposure, env->glow_bloom, env->glow_hdr_bleed_threshold, env->glow_hdr_bleed_scale, luminance_texture, env->auto_exp_scale);
+				storage->get_effects()->gaussian_glow(rb->texture, rb->blur[1].mipmaps[i].texture, Size2i(vp_w, vp_h), env->glow_strength, glow_high_quality, true, env->glow_hdr_luminance_cap, env->exposure, env->glow_bloom, env->glow_hdr_bleed_threshold, env->glow_hdr_bleed_scale, luminance_texture, env->auto_exp_scale);
 			} else {
-				storage->get_effects()->gaussian_glow(rb->blur[1].mipmaps[i - 1].texture, rb->blur[0].mipmaps[i + 1].texture, rb->blur[1].mipmaps[i].texture, Size2i(vp_w, vp_h), env->glow_strength, glow_high_quality);
+				storage->get_effects()->gaussian_glow(rb->blur[1].mipmaps[i - 1].texture, rb->blur[1].mipmaps[i].texture, Size2i(vp_w, vp_h), env->glow_strength, glow_high_quality);
 			}
 		}
 	}
