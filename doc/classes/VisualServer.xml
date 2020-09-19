@@ -2485,7 +2485,7 @@
 			<argument index="4" name="compress_format" type="int" default="97280">
 			</argument>
 			<description>
-				Adds a surface generated from the Arrays to a mesh. See [enum PrimitiveType] constants for types.
+				Adds a surface generated from the Arrays to a mesh. See [enum PrimitiveType] constants for types. Equivalent to [method Mesh.add_surface_from_arrays].
 			</description>
 		</method>
 		<method name="mesh_clear">
@@ -2530,7 +2530,7 @@
 			<argument index="0" name="mesh" type="RID">
 			</argument>
 			<description>
-				Returns a mesh's custom aabb.
+				Returns a mesh's custom [AABB].
 			</description>
 		</method>
 		<method name="mesh_get_surface_count" qualifiers="const">
@@ -2583,7 +2583,7 @@
 			<argument index="1" name="aabb" type="AABB">
 			</argument>
 			<description>
-				Sets a mesh's custom aabb.
+				Sets a mesh's custom [AABB].
 			</description>
 		</method>
 		<method name="mesh_surface_get_aabb" qualifiers="const">
@@ -2594,7 +2594,7 @@
 			<argument index="1" name="surface" type="int">
 			</argument>
 			<description>
-				Returns a mesh's surface's aabb.
+				Returns a mesh surface's [AABB].
 			</description>
 		</method>
 		<method name="mesh_surface_get_array" qualifiers="const">
@@ -2605,7 +2605,8 @@
 			<argument index="1" name="surface" type="int">
 			</argument>
 			<description>
-				Returns a mesh's surface's vertex buffer.
+				Returns a mesh surface's vertex data buffer in a single buffer of bytes. This is the format used by [method mesh_surface_update_region]. Vertex data is interleaved in the format set out by [method mesh_surface_get_format_offset].
+				[b]Note:[b] this function was made to be accessed by C++. In GDScript the method for accessing and writing to bytes is slow and prone to errors. See [method mesh_surface_update_region] for an example on how to use this buffer.
 			</description>
 		</method>
 		<method name="mesh_surface_get_array_index_len" qualifiers="const">
@@ -2616,7 +2617,7 @@
 			<argument index="1" name="surface" type="int">
 			</argument>
 			<description>
-				Returns a mesh's surface's amount of indices.
+				Returns a mesh surface's amount of indices.
 			</description>
 		</method>
 		<method name="mesh_surface_get_array_len" qualifiers="const">
@@ -2627,7 +2628,7 @@
 			<argument index="1" name="surface" type="int">
 			</argument>
 			<description>
-				Returns a mesh's surface's amount of vertices.
+				Returns a mesh surface's amount of vertices.
 			</description>
 		</method>
 		<method name="mesh_surface_get_arrays" qualifiers="const">
@@ -2638,7 +2639,12 @@
 			<argument index="1" name="surface" type="int">
 			</argument>
 			<description>
-				Returns a mesh's surface's buffer arrays.
+				Returns a mesh surface's buffer data in the array format. The array format stores multiple [code]Pool**Array[/code]s, one for each type of vertex data and one for the index array. This array format is made to be used with [method mesh_add_surface_from_arrays].
+				For example, to retrieve the array of vertex positions:
+				[codeblock]
+				    var arrays = VisualServer.mesh_surface_get_arrays(mesh.get_rid(), 0)
+					var vertex_array = arrays[VisualServer.ARRAY_VERTEX]
+				[/codeblock]
 			</description>
 		</method>
 		<method name="mesh_surface_get_blend_shape_arrays" qualifiers="const">
@@ -2649,7 +2655,12 @@
 			<argument index="1" name="surface" type="int">
 			</argument>
 			<description>
-				Returns a mesh's surface's arrays for blend shapes.
+				Returns an array of surface arrays, each surface array corresponds to a blend shape. The surface arrays are in the same format as [method mesh_surface_get_arrays].
+				For example, to get the vertex array of the first blend shape:
+				[codeblock]
+				    var blend_shapes = VisualServer.mesh_surface_get_blend_shape_arrays(mesh.get_rid(), 0)
+					var vertex_array = blend_shapes[0][VisualServer.ARRAY_VERTEX]
+				[/codeblock]
 			</description>
 		</method>
 		<method name="mesh_surface_get_format" qualifiers="const">
@@ -2660,7 +2671,14 @@
 			<argument index="1" name="surface" type="int">
 			</argument>
 			<description>
-				Returns the format of a mesh's surface.
+				Returns the format of a mesh's surface. The format describes which arrays the surface uses (e.g. vertex, normal, UV) and which of those arrays are compressed. Compressed formats use half floats instead of full floats.
+				Each flag is stored in a single bit which you can access using a bitwise "&" with the corresponding [enum ArrayType].
+				For example:
+				[codeblock]
+				    var format = VisualServer.mesh_surface_get_format(mesh.get_rid(), 0)
+				    var uses_normal = bool(format & VisualServer.ARRAY_NORMAL)
+					var normal_is_compressed = bool(format & VisualServer.ARRAY_COMPRESS_NORMAL)
+				[/codeblock]
 			</description>
 		</method>
 		<method name="mesh_surface_get_format_offset" qualifiers="const">
@@ -2675,7 +2693,15 @@
 			<argument index="3" name="array_index" type="int">
 			</argument>
 			<description>
-				Function is unused in Godot 3.x.
+				Returns the offset of the specified [enum ArrayType] in the surface buffer returned by [method mesh_surface_get_array]. [code]array_index[/code] is one of the [enum ArrayType] enums.
+				You need to obtain the format offset for each of the surface arrays that you intend to write to. For example:
+				[codeblock]
+				    var surface_format = VisualServer.mesh_surface_get_format(mesh.get_rid(), 0)
+				    var vertex_len = VisualServer.mesh_surface_get_array_len(mesh.get_rid(), 0)
+				    var index_len = VisualServer.mesh_surface_get_array_index_len(mesh.get_rid(), 0)
+				    var	vertex_offset = VisualServer.mesh_surface_get_format_offset(surface_format, vertex_len, index_len, VisualServer.ARRAY_VERTEX)
+				[/codeblock]
+				See [method mesh_surface_update_region] for where to use the value returned.
 			</description>
 		</method>
 		<method name="mesh_surface_get_format_stride" qualifiers="const">
@@ -2688,7 +2714,15 @@
 			<argument index="2" name="index_len" type="int">
 			</argument>
 			<description>
-				Function is unused in Godot 3.x.
+				Returns the length of the surface buffer's stride. The stride is the size of the vertex in bytes. Use this to pick a specific vertex out of the surface buffer.
+				For example:
+				[codeblock]
+				    var surface_format = VisualServer.mesh_surface_get_format(mesh.get_rid(), 0)
+				    var vertex_len = VisualServer.mesh_surface_get_array_len(mesh.get_rid(), 0)
+				    var index_len = VisualServer.mesh_surface_get_array_index_len(mesh.get_rid(), 0)
+				    var mesh_stride = VisualServer.mesh_surface_get_format_stride(surface_format, vertex_len, index_len)
+				[/codeblock]
+				See [method mesh_surface_update_region] for where to use the value returned.
 			</description>
 		</method>
 		<method name="mesh_surface_get_index_array" qualifiers="const">
@@ -2699,7 +2733,7 @@
 			<argument index="1" name="surface" type="int">
 			</argument>
 			<description>
-				Returns a mesh's surface's index buffer.
+				Returns a mesh's surface's index buffer for use with [method mesh_surface_get_array].
 			</description>
 		</method>
 		<method name="mesh_surface_get_material" qualifiers="const">
@@ -2710,7 +2744,7 @@
 			<argument index="1" name="surface" type="int">
 			</argument>
 			<description>
-				Returns a mesh's surface's material.
+				Returns a mesh's surface's [Material].
 			</description>
 		</method>
 		<method name="mesh_surface_get_primitive_type" qualifiers="const">
@@ -2732,7 +2766,7 @@
 			<argument index="1" name="surface" type="int">
 			</argument>
 			<description>
-				Returns the aabb of a mesh's surface's skeleton.
+				Returns an [Array] of [AABB]s corresponding to the bones of a mesh surface's skeleton.
 			</description>
 		</method>
 		<method name="mesh_surface_set_material">
@@ -2760,7 +2794,11 @@
 			<argument index="3" name="data" type="PoolByteArray">
 			</argument>
 			<description>
-				Updates a specific region of a vertex buffer for the specified surface. Warning: this function alters the vertex buffer directly with no safety mechanisms, you can easily corrupt your mesh.
+				Updates a specific region of a vertex buffer for the specified surface. 
+				[b]Warning:[b] this function alters the vertex buffer directly with no safety mechanisms, you can easily corrupt your mesh.
+				[codeblock]
+
+				[codeblock]
 			</description>
 		</method>
 		<method name="multimesh_allocate">

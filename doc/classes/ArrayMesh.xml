@@ -54,6 +54,8 @@
 				Surfaces are created to be rendered using a [code]primitive[/code], which may be any of the types defined in [enum Mesh.PrimitiveType]. (As a note, when using indices, it is recommended to only use points, lines or triangles.) [method Mesh.get_surface_count] will become the [code]surf_idx[/code] for this new surface.
 				The [code]arrays[/code] argument is an array of arrays. See [enum ArrayType] for the values used in this array. For example, [code]arrays[0][/code] is the array of vertices. That first vertex sub-array is always required; the others are optional. Adding an index array puts this function into "index mode" where the vertex and other arrays become the sources of data and the index array defines the vertex order. All sub-arrays must have the same length as the vertex array or be empty, except for [constant ARRAY_INDEX] if it is used.
 				Adding an index array puts this function into "index mode" where the vertex and other arrays become the sources of data, and the index array defines the order of the vertices.
+				The blend shape array is an array of arrays with the same format as the [code]arrays[/code] argument.
+				The [code]compress_flags[/code] is a integer comprised of bit flags from [enum ArrayType]. Compressing an array makes it use half floats so it takes up half the number of bytes.
 			</description>
 		</method>
 		<method name="clear_blend_shapes">
@@ -181,7 +183,8 @@
 			<argument index="2" name="data" type="PoolByteArray">
 			</argument>
 			<description>
-				Updates a specified region of mesh arrays on the GPU.
+				Updates a specified region of mesh arrays on the GPU. This expects the data to already be configured for use by the GPU. You are responsible for properly packing the data into the format expected by the GPU.
+				See [method VisualServer.mesh_surface_update_region] for how the data should be formatted.
 				[b]Warning:[/b] Only use if you know what you are doing. You can easily cause crashes by calling this function with improper arguments.
 			</description>
 		</method>
@@ -220,10 +223,10 @@
 			[PoolVector2Array] for second UV coordinates.
 		</constant>
 		<constant name="ARRAY_BONES" value="6" enum="ArrayType">
-			[PoolRealArray] or [PoolIntArray] of bone indices. Each element in groups of 4 floats.
+			[PoolRealArray] or [PoolIntArray] of bone indices. Each element in groups of 4 floats. Thus, each vertex stores reference to 4 bones
 		</constant>
 		<constant name="ARRAY_WEIGHTS" value="7" enum="ArrayType">
-			[PoolRealArray] of bone weights. Each element in groups of 4 floats.
+			[PoolRealArray] of bone weights. Each element in groups of 4 floats. Thus, each vertex stores a weight for each bone
 		</constant>
 		<constant name="ARRAY_INDEX" value="8" enum="ArrayType">
 			[PoolIntArray] of integers used as indices referencing vertices, colors, normals, tangents, and textures. All of those arrays must have the same number of elements as the vertex array. No index can be beyond the vertex array size. When this index array is present, it puts the function into "index mode," where the index selects the *i*'th vertex, normal, tangent, color, UV, etc. This means if you want to have different normals or colors along an edge, you have to duplicate the vertices.
