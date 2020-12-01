@@ -35,8 +35,13 @@
 #ifndef CONTEXT_GL_WIN_H
 #define CONTEXT_GL_WIN_H
 
+#include "temp_gl_defines.h"
+
 #include "core/error/error_list.h"
 #include "core/os/os.h"
+
+#include "servers/display_server.h"
+#include "core/templates/local_vector.h"
 
 #include <windows.h>
 
@@ -44,6 +49,51 @@ typedef bool(APIENTRY *PFNWGLSWAPINTERVALEXTPROC)(int interval);
 typedef int(APIENTRY *PFNWGLGETSWAPINTERVALEXTPROC)(void);
 
 class ContextGL_Windows {
+
+
+	struct GLWindow
+	{
+		GLWindow() {in_use = false;}
+		
+		bool in_use;
+		
+		// the external ID
+		DisplayServer::WindowID window_id;
+		int width;
+		int height;
+		HWND hWnd;
+		int gldisplay_id;
+	};
+	
+	struct GLDisplay
+	{
+		//GLDisplay() {}
+		~GLDisplay();
+		//GLManager_Windows_Private *context;
+		//::Display *x11_display;
+		//XVisualInfo x_vi;
+		//XSetWindowAttributes x_swa;
+		//unsigned long x_valuemask;
+		HDC hDC;
+		HGLRC hRC;
+		unsigned int pixel_format;
+		
+	};
+	
+	LocalVector<GLWindow> _windows;
+	LocalVector<GLDisplay> _displays;
+	
+	GLWindow * _current_window;
+	
+	void _internal_set_current_window(GLWindow * p_win);
+
+	GLWindow &get_window(unsigned int id) {return _windows[id];}
+	const GLWindow &get_window(unsigned int id) const {return _windows[id];}
+	
+	const GLDisplay &get_current_display() const {return _displays[_current_window->gldisplay_id];}
+	const GLDisplay &get_display(unsigned int id) {return _displays[id];}
+	
+
 	HDC hDC;
 	HGLRC hRC;
 	unsigned int pixel_format;
@@ -56,8 +106,18 @@ class ContextGL_Windows {
 	PFNWGLGETSWAPINTERVALEXTPROC wglGetSwapIntervalEXT;
 
 	static bool should_vsync_via_compositor();
-
+private:
+	//int _find_or_create_display(Display *p_x11_display);
+	//Error _create_context(GLDisplay &gl_display);
 public:
+	Error window_create(DisplayServer::WindowID p_window_id, HWND p_window, HINSTANCE p_instance, int p_width, int p_height);
+	void window_resize(DisplayServer::WindowID p_window_id, int p_width, int p_height);
+	int window_get_width(DisplayServer::WindowID p_window = 0);
+	int window_get_height(DisplayServer::WindowID p_window = 0);
+	void window_destroy(DisplayServer::WindowID p_window_id);
+
+	void make_window_current(DisplayServer::WindowID p_window_id);
+
 	void release_current();
 
 	void make_current();
@@ -71,7 +131,7 @@ public:
 	void set_use_vsync(bool p_use);
 	bool is_using_vsync() const;
 
-	ContextGL_Windows(HWND hwnd, bool p_opengl_3_context);
+	ContextGL_Windows();
 	~ContextGL_Windows();
 };
 

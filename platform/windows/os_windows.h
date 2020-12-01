@@ -31,6 +31,8 @@
 #ifndef OS_WINDOWS_H
 #define OS_WINDOWS_H
 
+#include "temp_gl_defines.h"
+
 #include "core/config/project_settings.h"
 #include "core/input/input.h"
 #include "core/os/os.h"

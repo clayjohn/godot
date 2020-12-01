@@ -31,6 +31,8 @@
 #ifndef DISPLAY_SERVER_WINDOWS_H
 #define DISPLAY_SERVER_WINDOWS_H
 
+#include "temp_gl_defines.h"
+
 #include "servers/display_server.h"
 
 #include "core/config/project_settings.h"
@@ -542,6 +544,8 @@ public:
 	virtual void release_rendering_thread();
 	virtual void make_rendering_thread();
 	virtual void swap_buffers();
+
+	virtual void make_gl_window_current(DisplayServer::WindowID  p_window_id);
 
 	virtual void set_native_icon(const String &p_filename);
 	virtual void set_icon(const Ref<Image> &p_icon);

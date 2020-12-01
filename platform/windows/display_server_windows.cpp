@@ -32,11 +32,16 @@
 
 #include "core/io/marshalls.h"
 #include "core/math/geometry_2d.h"
+#include "core/string/ustring.h"
 #include "main/main.h"
 #include "os_windows.h"
 #include "scene/resources/texture.h"
 
 #include <avrt.h>
+
+#if defined(OPENGL_ENABLED)
+#include "drivers/gles2/rasterizer_wrapper_gles2.h"
+#endif
 
 #ifdef DEBUG_ENABLED
 static String format_error_message(DWORD id) {
@@ -534,6 +539,11 @@ void DisplayServerWindows::delete_sub_window(WindowID p_window) {
 		context_vulkan->window_destroy(p_window);
 	}
 #endif
+#ifdef OPENGL_ENABLED
+	if (rendering_driver == "opengl_es") {
+		context_gles2->window_destroy(p_window);
+	}
+#endif
 
 	if ((OS::get_singleton()->get_current_tablet_driver() == "wintab") && wintab_available && windows[p_window].wtctx) {
 		wintab_WTClose(windows[p_window].wtctx);
@@ -820,6 +830,11 @@ void DisplayServerWindows::window_set_size(const Size2i p_size, WindowID p_windo
 #if defined(VULKAN_ENABLED)
 	if (rendering_driver == "vulkan") {
 		context_vulkan->window_resize(p_window, w, h);
+	}
+#endif
+#if defined(OPENGL_ENABLED)
+	if (rendering_driver == "opengl_es") {
+		context_gles2->window_resize(p_window, w, h);
 	}
 #endif
 
@@ -1547,6 +1562,7 @@ void DisplayServerWindows::make_rendering_thread() {
 }
 
 void DisplayServerWindows::swap_buffers() {
+	context_gles2->swap_buffers();
 }
 
 void DisplayServerWindows::set_native_icon(const String &p_filename) {
@@ -2967,6 +2983,13 @@ DisplayServer::WindowID DisplayServerWindows::_create_window(WindowMode p_mode, 
 			}
 		}
 #endif
+#ifdef OPENGL_ENABLED
+		print_line("rendering_driver " + rendering_driver);
+		if (rendering_driver == "opengl_es") {
+			Error err = context_gles2->window_create(id, wd.hWnd, hInstance, WindowRect.right - WindowRect.left, WindowRect.bottom - WindowRect.top);
+			ERR_FAIL_COND_V_MSG(err != OK, INVALID_WINDOW_ID, "Can't create a GLES2 window");
+		}
+#endif
 
 		RegisterTouchWindow(wd.hWnd, 0);
 
@@ -3112,7 +3135,10 @@ DisplayServerWindows::DisplayServerWindows(const String &p_rendering_driver, Win
 		use_raw_input = false;
 	}
 
-	rendering_driver = "vulkan";
+	//rendering_driver = "vulkan";
+	rendering_driver = "opengl_es";
+
+	print_line("rendering_driver " + rendering_driver);
 
 #if defined(VULKAN_ENABLED)
 	if (rendering_driver == "vulkan") {
@@ -3126,26 +3152,28 @@ DisplayServerWindows::DisplayServerWindows(const String &p_rendering_driver, Win
 	}
 #endif
 #if defined(OPENGL_ENABLED)
-	if (rendering_driver_index == VIDEO_DRIVER_GLES2) {
-		context_gles2 = memnew(ContextGL_Windows(hWnd, false));
+	
+	if (rendering_driver == "opengl_es") {
+		context_gles2 = memnew(ContextGL_Windows());
 
 		if (context_gles2->initialize() != OK) {
 			memdelete(context_gles2);
 			context_gles2 = nullptr;
-			ERR_FAIL_V(ERR_UNAVAILABLE);
+			r_error = ERR_UNAVAILABLE;
+			return;
 		}
 
-		context_gles2->set_use_vsync(video_mode.use_vsync);
-		set_vsync_via_compositor(video_mode.vsync_via_compositor);
+		//context_gles2->set_use_vsync(video_mode.use_vsync);
+		//set_vsync_via_compositor(video_mode.vsync_via_compositor);
 
-		if (RasterizerGLES2::is_viable() == OK) {
-			RasterizerGLES2::register_config();
-			RasterizerGLES2::make_current();
-		} else {
-			memdelete(context_gles2);
-			context_gles2 = nullptr;
-			ERR_FAIL_V(ERR_UNAVAILABLE);
-		}
+		//if (RasterizerGLES2::is_viable() == OK) {
+		//	RasterizerGLES2::register_config();
+			//RasterizerGLES2::make_current();
+		//} else {
+		//	memdelete(context_gles2);
+		//	context_gles2 = nullptr;
+			//ERR_FAIL_V(ERR_UNAVAILABLE);
+		//}
 	}
 #endif
 	Point2i window_position(
@@ -3170,6 +3198,23 @@ DisplayServerWindows::DisplayServerWindows(const String &p_rendering_driver, Win
 		rendering_device_vulkan->initialize(context_vulkan);
 
 		RasterizerRD::make_current();
+	}
+#endif
+#if defined(OPENGL_ENABLED)
+if (rendering_driver == "opengl_es") {
+
+		//context_gles2->set_use_vsync(video_mode.use_vsync);
+		//set_vsync_via_compositor(video_mode.vsync_via_compositor);
+
+		//if (RasterizerGLES2::is_viable() == OK) {
+			//RasterizerGLES2::register_config();
+			RasterizerGLES2::make_current();
+			
+		//} else {
+		//	memdelete(context_gles2);
+		//	context_gles2 = nullptr;
+			//ERR_FAIL_V(ERR_UNAVAILABLE);
+		//}
 	}
 #endif
 
@@ -3229,6 +3274,13 @@ void DisplayServerWindows::register_windows_driver() {
 	register_create_function("windows", create_func, get_rendering_drivers_func);
 }
 
+void DisplayServerWindows::make_gl_window_current(DisplayServer::WindowID  p_window_id)
+{
+#if defined(OPENGL_ENABLED)
+	context_gles2->make_window_current(p_window_id);
+#endif
+}
+
 DisplayServerWindows::~DisplayServerWindows() {
 	delete joypad;
 	touch_state.clear();
@@ -3243,6 +3295,11 @@ DisplayServerWindows::~DisplayServerWindows() {
 #ifdef VULKAN_ENABLED
 		if (rendering_driver == "vulkan") {
 			context_vulkan->window_destroy(MAIN_WINDOW_ID);
+		}
+#endif
+#ifdef OPENGL_ENABLED
+		if (rendering_driver == "opengl_es") {
+			context_gles2->window_destroy(MAIN_WINDOW_ID);
 		}
 #endif
 		if (wintab_available && windows[MAIN_WINDOW_ID].wtctx) {
@@ -3263,4 +3320,11 @@ DisplayServerWindows::~DisplayServerWindows() {
 			memdelete(context_vulkan);
 	}
 #endif
+#ifdef OPENGL_ENABLED
+	if (context_gles2) {
+		memdelete(context_gles2);
+		context_gles2 = nullptr;
+	}
+#endif
+
 }
