@@ -792,7 +792,7 @@ void Environment::_update_fog() {
 // Volumetric Fog
 
 void Environment::_update_volumetric_fog() {
-	RS::get_singleton()->environment_set_volumetric_fog(environment, volumetric_fog_enabled, volumetric_fog_density, volumetric_fog_light, volumetric_fog_light_energy, volumetric_fog_length, volumetric_fog_detail_spread, volumetric_fog_gi_inject, volumetric_fog_temporal_reproject, volumetric_fog_temporal_reproject_amount);
+	RS::get_singleton()->environment_set_volumetric_fog(environment, volumetric_fog_enabled, volumetric_fog_density, volumetric_fog_albedo, volumetric_fog_emission, volumetric_fog_emission_energy, volumetric_fog_anisotropy, volumetric_fog_length, volumetric_fog_detail_spread, volumetric_fog_gi_inject, volumetric_fog_temporal_reproject, volumetric_fog_temporal_reproject_amount);
 }
 
 void Environment::set_volumetric_fog_enabled(bool p_enable) {
@@ -812,19 +812,33 @@ void Environment::set_volumetric_fog_density(float p_density) {
 float Environment::get_volumetric_fog_density() const {
 	return volumetric_fog_density;
 }
-void Environment::set_volumetric_fog_light(Color p_color) {
-	volumetric_fog_light = p_color;
+void Environment::set_volumetric_fog_albedo(Color p_color) {
+	volumetric_fog_albedo = p_color;
 	_update_volumetric_fog();
 }
-Color Environment::get_volumetric_fog_light() const {
-	return volumetric_fog_light;
+Color Environment::get_volumetric_fog_albedo() const {
+	return volumetric_fog_albedo;
 }
-void Environment::set_volumetric_fog_light_energy(float p_begin) {
-	volumetric_fog_light_energy = p_begin;
+void Environment::set_volumetric_fog_emission(Color p_color) {
+	volumetric_fog_emission = p_color;
 	_update_volumetric_fog();
 }
-float Environment::get_volumetric_fog_light_energy() const {
-	return volumetric_fog_light_energy;
+Color Environment::get_volumetric_fog_emission() const {
+	return volumetric_fog_emission;
+}
+void Environment::set_volumetric_fog_emission_energy(float p_begin) {
+	volumetric_fog_emission_energy = p_begin;
+	_update_volumetric_fog();
+}
+float Environment::get_volumetric_fog_emission_energy() const {
+	return volumetric_fog_emission_energy;
+}
+void Environment::set_volumetric_fog_anisotropy(float p_anisotropy) {
+	volumetric_fog_anisotropy = p_anisotropy;
+	_update_volumetric_fog();
+}
+float Environment::get_volumetric_fog_anisotropy() const {
+	return volumetric_fog_anisotropy;
 }
 void Environment::set_volumetric_fog_length(float p_length) {
 	volumetric_fog_length = p_length;
@@ -1308,12 +1322,16 @@ void Environment::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_volumetric_fog_enabled", "enabled"), &Environment::set_volumetric_fog_enabled);
 	ClassDB::bind_method(D_METHOD("is_volumetric_fog_enabled"), &Environment::is_volumetric_fog_enabled);
-	ClassDB::bind_method(D_METHOD("set_volumetric_fog_light", "color"), &Environment::set_volumetric_fog_light);
-	ClassDB::bind_method(D_METHOD("get_volumetric_fog_light"), &Environment::get_volumetric_fog_light);
+	ClassDB::bind_method(D_METHOD("set_volumetric_fog_emission", "color"), &Environment::set_volumetric_fog_emission);
+	ClassDB::bind_method(D_METHOD("get_volumetric_fog_emission"), &Environment::get_volumetric_fog_emission);
+	ClassDB::bind_method(D_METHOD("set_volumetric_fog_albedo", "color"), &Environment::set_volumetric_fog_albedo);
+	ClassDB::bind_method(D_METHOD("get_volumetric_fog_albedo"), &Environment::get_volumetric_fog_albedo);
 	ClassDB::bind_method(D_METHOD("set_volumetric_fog_density", "density"), &Environment::set_volumetric_fog_density);
 	ClassDB::bind_method(D_METHOD("get_volumetric_fog_density"), &Environment::get_volumetric_fog_density);
-	ClassDB::bind_method(D_METHOD("set_volumetric_fog_light_energy", "begin"), &Environment::set_volumetric_fog_light_energy);
-	ClassDB::bind_method(D_METHOD("get_volumetric_fog_light_energy"), &Environment::get_volumetric_fog_light_energy);
+	ClassDB::bind_method(D_METHOD("set_volumetric_fog_emission_energy", "begin"), &Environment::set_volumetric_fog_emission_energy);
+	ClassDB::bind_method(D_METHOD("get_volumetric_fog_emission_energy"), &Environment::get_volumetric_fog_emission_energy);
+	ClassDB::bind_method(D_METHOD("set_volumetric_fog_anisotropy", "anisotropy"), &Environment::set_volumetric_fog_anisotropy);
+	ClassDB::bind_method(D_METHOD("get_volumetric_fog_anisotropy"), &Environment::get_volumetric_fog_anisotropy);
 	ClassDB::bind_method(D_METHOD("set_volumetric_fog_length", "length"), &Environment::set_volumetric_fog_length);
 	ClassDB::bind_method(D_METHOD("get_volumetric_fog_length"), &Environment::get_volumetric_fog_length);
 	ClassDB::bind_method(D_METHOD("set_volumetric_fog_detail_spread", "detail_spread"), &Environment::set_volumetric_fog_detail_spread);
@@ -1328,9 +1346,11 @@ void Environment::_bind_methods() {
 	ADD_GROUP("Volumetric Fog", "volumetric_fog_");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "volumetric_fog_enabled"), "set_volumetric_fog_enabled", "is_volumetric_fog_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "volumetric_fog_density", PROPERTY_HINT_RANGE, "0,1,0.0001,or_greater"), "set_volumetric_fog_density", "get_volumetric_fog_density");
-	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "volumetric_fog_light", PROPERTY_HINT_COLOR_NO_ALPHA), "set_volumetric_fog_light", "get_volumetric_fog_light");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "volumetric_fog_light_energy", PROPERTY_HINT_RANGE, "0,1024,0.01,or_greater"), "set_volumetric_fog_light_energy", "get_volumetric_fog_light_energy");
+	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "volumetric_fog_albedo", PROPERTY_HINT_COLOR_NO_ALPHA), "set_volumetric_fog_albedo", "get_volumetric_fog_albedo");
+	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "volumetric_fog_emission", PROPERTY_HINT_COLOR_NO_ALPHA), "set_volumetric_fog_emission", "get_volumetric_fog_emission");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "volumetric_fog_emission_energy", PROPERTY_HINT_RANGE, "0,1024,0.01,or_greater"), "set_volumetric_fog_emission_energy", "get_volumetric_fog_emission_energy");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "volumetric_fog_gi_inject", PROPERTY_HINT_RANGE, "0.00,16,0.01,exp"), "set_volumetric_fog_gi_inject", "get_volumetric_fog_gi_inject");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "volumetric_fog_anisotropy", PROPERTY_HINT_RANGE, "-0.9,0.9,0.01"), "set_volumetric_fog_anisotropy", "get_volumetric_fog_anisotropy");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "volumetric_fog_length", PROPERTY_HINT_RANGE, "0,1024,0.01,or_greater"), "set_volumetric_fog_length", "get_volumetric_fog_length");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "volumetric_fog_detail_spread", PROPERTY_HINT_EXP_EASING, "0.01,16,0.01"), "set_volumetric_fog_detail_spread", "get_volumetric_fog_detail_spread");
 	ADD_SUBGROUP("Temporal Reprojection", "volumetric_fog_temporal_reprojection_");
@@ -1394,11 +1414,6 @@ void Environment::_bind_methods() {
 	BIND_ENUM_CONSTANT(SDFGI_Y_SCALE_DISABLED);
 	BIND_ENUM_CONSTANT(SDFGI_Y_SCALE_75_PERCENT);
 	BIND_ENUM_CONSTANT(SDFGI_Y_SCALE_50_PERCENT);
-
-	BIND_ENUM_CONSTANT(VOLUMETRIC_FOG_SHADOW_FILTER_DISABLED);
-	BIND_ENUM_CONSTANT(VOLUMETRIC_FOG_SHADOW_FILTER_LOW);
-	BIND_ENUM_CONSTANT(VOLUMETRIC_FOG_SHADOW_FILTER_MEDIUM);
-	BIND_ENUM_CONSTANT(VOLUMETRIC_FOG_SHADOW_FILTER_HIGH);
 }
 
 Environment::Environment() {
