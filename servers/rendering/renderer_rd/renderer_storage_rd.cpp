@@ -5743,15 +5743,6 @@ void RendererStorageRD::ParticlesShaderData::set_code(const String &p_code) {
 	actions.entry_point_stages["start"] = ShaderCompiler::STAGE_COMPUTE;
 	actions.entry_point_stages["process"] = ShaderCompiler::STAGE_COMPUTE;
 
-	/*
-	uses_time = false;
-
-	actions.render_mode_flags["use_half_res_pass"] = &uses_half_res;
-	actions.render_mode_flags["use_quarter_res_pass"] = &uses_quarter_res;
-
-	actions.usage_flag_pointers["TIME"] = &uses_time;
-*/
-
 	actions.usage_flag_pointers["COLLIDED"] = &uses_collision;
 
 	actions.uniforms = &uniforms;

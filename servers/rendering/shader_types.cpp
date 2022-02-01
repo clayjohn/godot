@@ -421,6 +421,8 @@ ShaderTypes::ShaderTypes() {
 	{
 		shader_modes[RS::SHADER_SKY].modes.push_back({ "use_half_res_pass" });
 		shader_modes[RS::SHADER_SKY].modes.push_back({ "use_quarter_res_pass" });
+		shader_modes[RS::SHADER_SKY].modes.push_back({ "upscale_half_res_pass" });
+		shader_modes[RS::SHADER_SKY].modes.push_back({ "upscale_quarter_res_pass" });
 		shader_modes[RS::SHADER_SKY].modes.push_back({ "disable_fog" });
 	}
 

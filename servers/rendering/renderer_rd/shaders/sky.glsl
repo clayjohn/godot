@@ -97,6 +97,10 @@ layout(set = 0, binding = 2, std140) uniform SceneData {
 
 	float z_far;
 	uint directional_light_count;
+
+	vec2 screen_size;
+	bool upscale_half_res_pass;
+	bool upscale_quarter_res_pass;
 }
 scene_data;
 
@@ -175,15 +179,23 @@ vec4 fog_process(vec3 view, vec3 sky_color) {
 }
 
 void main() {
+	vec2 new_uv = uv_interp * 0.5 + 0.5;
+	if ((AT_QUARTER_RES_PASS && scene_data.upscale_quarter_res_pass) || (AT_HALF_RES_PASS && scene_data.upscale_half_res_pass)) { // && upscale_enabled
+		vec2 shift = vec2(floor(params.pad[0] / params.pad[1]), mod(params.pad[0], params.pad[1]));
+		new_uv = floor(new_uv * scene_data.screen_size.xy) + shift;
+		new_uv = new_uv / scene_data.screen_size.xy;
+	}
+	new_uv = new_uv * 2.0 - 1.0;
+
 	vec3 cube_normal;
 	cube_normal.z = -1.0;
-	cube_normal.x = (cube_normal.z * (-uv_interp.x - params.projections[ViewIndex].x)) / params.projections[ViewIndex].y;
-	cube_normal.y = -(cube_normal.z * (-uv_interp.y - params.projections[ViewIndex].z)) / params.projections[ViewIndex].w;
+	cube_normal.x = (cube_normal.z * (-new_uv.x - params.projections[ViewIndex].x)) / params.projections[ViewIndex].y;
+	cube_normal.y = -(cube_normal.z * (-new_uv.y - params.projections[ViewIndex].z)) / params.projections[ViewIndex].w;
 	cube_normal = mat3(params.orientation) * cube_normal;
 	cube_normal.z = -cube_normal.z;
 	cube_normal = normalize(cube_normal);
 
-	vec2 uv = uv_interp * 0.5 + 0.5;
+	vec2 uv = new_uv * 0.5 + 0.5;
 
 	vec2 panorama_coords = vec2(atan(cube_normal.x, cube_normal.z), acos(cube_normal.y));
 

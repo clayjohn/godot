@@ -36,6 +36,7 @@
 #include "servers/rendering/renderer_rd/renderer_scene_environment_rd.h"
 #include "servers/rendering/renderer_rd/renderer_storage_rd.h"
 #include "servers/rendering/renderer_rd/shaders/sky.glsl.gen.h"
+#include "servers/rendering/renderer_rd/shaders/sky_upscale.glsl.gen.h"
 #include "servers/rendering/renderer_scene_render.h"
 #include "servers/rendering/rendering_device.h"
 
@@ -76,6 +77,10 @@ private:
 		SKY_TEXTURE_SET_CUBEMAP,
 		SKY_TEXTURE_SET_CUBEMAP_HALF_RES,
 		SKY_TEXTURE_SET_CUBEMAP_QUARTER_RES,
+		SKY_TEXTURE_SET_HALF_RES_UPSCALE,
+		SKY_TEXTURE_SET_QUARTER_RES_UPSCALE,
+		SKY_TEXTURE_SET_CUBEMAP_HALF_RES_UPSCALE,
+		SKY_TEXTURE_SET_CUBEMAP_QUARTER_RES_UPSCALE,
 		SKY_TEXTURE_SET_MAX
 	};
 
@@ -105,6 +110,16 @@ private:
 		// 128 is the max size of a push constant. We can replace "pad" but we can't add any more.
 	};
 
+	struct SkyUpscalePushConstant {
+		int source_size[2];
+		int dest_size[2];
+		int scale;
+		int offset;
+		uint32_t first_frame;
+		uint32_t pad;
+		float reprojection[16];
+	};
+
 	struct SkyShaderData : public RendererStorageRD::ShaderData {
 		bool valid;
 		RID version;
@@ -124,6 +139,8 @@ private:
 		bool uses_position;
 		bool uses_half_res;
 		bool uses_quarter_res;
+		bool upscale_half_res;
+		bool upscale_quarter_res;
 		bool uses_light;
 
 		virtual void set_code(const String &p_Code);
@@ -158,6 +175,10 @@ public:
 
 			float z_far;
 			uint32_t directional_light_count;
+
+			float screen_size[2];
+			uint32_t upscale_half_res_pass;
+			uint32_t upscale_quarter_res_pass;
 		};
 
 		UBO ubo;
@@ -171,6 +192,12 @@ public:
 		RID uniform_buffer;
 		RID fog_uniform_set;
 		RID default_fog_uniform_set;
+
+		SkyUpscalePushConstant upscale_push_constant;
+		SkyUpscaleShaderRD upscale_shader;
+		RID upscale_shader_version;
+		RID upscale_shader_rd;
+		PipelineCacheRD upscale_pipeline;
 
 		RID fog_shader;
 		RID fog_material;
@@ -240,13 +267,30 @@ public:
 
 	struct Sky {
 		RID radiance;
+		RID half_res_upscale_pass;
+		RID half_res_upscale_framebuffer;
+		RID half_res_upscale_history_pass;
+		RID half_res_upscale_history_framebuffer;
 		RID half_res_pass;
 		RID half_res_framebuffer;
+		RID quarter_res_upscale_pass;
+		RID quarter_res_upscale_framebuffer;
+		RID quarter_res_upscale_history_pass;
+		RID quarter_res_upscale_history_framebuffer;
 		RID quarter_res_pass;
 		RID quarter_res_framebuffer;
+		int upscale_frame = 0;
+		CameraMatrix last_frame_projection_matrix;
+
+		// Used so sky only allocates what it needs
+		bool needs_half_res = false;
+		bool needs_half_res_upscale = false;
+		bool needs_quarter_res = false;
+		bool needs_quarter_res_upscale = false;
+
 		Size2i screen_size;
 
-		RID texture_uniform_sets[SKY_TEXTURE_SET_MAX];
+		RID texture_uniform_sets[SKY_TEXTURE_SET_MAX][2];
 		RID uniform_set;
 
 		RID material;
@@ -255,6 +299,8 @@ public:
 		int radiance_size = 256;
 
 		RS::SkyMode mode = RS::SKY_MODE_AUTOMATIC;
+
+		bool upscale = true;
 
 		ReflectionData reflection;
 		bool dirty = false;
@@ -268,7 +314,8 @@ public:
 
 		void free(RendererStorageRD *p_storage);
 
-		RID get_textures(RendererStorageRD *p_storage, SkyTextureSetVersion p_version, RID p_default_shader_rd);
+		void free_texture_uniform_sets();
+		RID get_textures(RendererStorageRD *p_storage, SkyTextureSetVersion p_version, RID p_default_shader_rd, bool p_use_half_res_upscale, bool p_use_quarter_res_upscale, bool p_use_history);
 		bool set_radiance_size(int p_radiance_size);
 		bool set_mode(RS::SkyMode p_mode);
 		bool set_material(RID p_material);
