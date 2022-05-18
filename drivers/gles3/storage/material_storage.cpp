@@ -1187,8 +1187,6 @@ void MaterialData::update_textures(const HashMap<StringName, Variant> &p_paramet
 				p_textures[k++] = gl_texture;
 			}
 		} else {
-			//bool srgb = p_use_linear_color && (p_texture_uniforms[i].hint == ShaderLanguage::ShaderNode::Uniform::HINT_ALBEDO || p_texture_uniforms[i].hint == ShaderLanguage::ShaderNode::Uniform::HINT_BLACK_ALBEDO);
-
 			for (int j = 0; j < textures.size(); j++) {
 				Texture *tex = TextureStorage::get_singleton()->get_texture(textures[j]);
 
@@ -1674,10 +1672,6 @@ ShaderCompiler::DefaultIdentifierActions actions;
 
 		shaders.compiler_sky.initialize(actions);
 	}
-
-	//shaders.copy.initialize();
-	//shaders.copy_version = shaders.copy.version_create(); //TODO
-	//shaders.copy.version_bind_shader(shaders.copy_version, CopyShaderGLES3::MODE_COPY_SECTION);
 }
 
 MaterialStorage::~MaterialStorage() {
@@ -2751,7 +2745,7 @@ void CanvasShaderData::set_code(const String &p_code) {
 
 	ShaderCompiler::GeneratedCode gen_code;
 
-	int blend_mode = BLEND_MODE_MIX;
+	int blend_modei = BLEND_MODE_MIX;
 	uses_screen_texture = false;
 
 	ShaderCompiler::IdentifierActions actions;
@@ -2759,12 +2753,12 @@ void CanvasShaderData::set_code(const String &p_code) {
 	actions.entry_point_stages["fragment"] = ShaderCompiler::STAGE_FRAGMENT;
 	actions.entry_point_stages["light"] = ShaderCompiler::STAGE_FRAGMENT;
 
-	actions.render_mode_values["blend_add"] = Pair<int *, int>(&blend_mode, BLEND_MODE_ADD);
-	actions.render_mode_values["blend_mix"] = Pair<int *, int>(&blend_mode, BLEND_MODE_MIX);
-	actions.render_mode_values["blend_sub"] = Pair<int *, int>(&blend_mode, BLEND_MODE_SUB);
-	actions.render_mode_values["blend_mul"] = Pair<int *, int>(&blend_mode, BLEND_MODE_MUL);
-	actions.render_mode_values["blend_premul_alpha"] = Pair<int *, int>(&blend_mode, BLEND_MODE_PMALPHA);
-	actions.render_mode_values["blend_disabled"] = Pair<int *, int>(&blend_mode, BLEND_MODE_DISABLED);
+	actions.render_mode_values["blend_add"] = Pair<int *, int>(&blend_modei, BLEND_MODE_ADD);
+	actions.render_mode_values["blend_mix"] = Pair<int *, int>(&blend_modei, BLEND_MODE_MIX);
+	actions.render_mode_values["blend_sub"] = Pair<int *, int>(&blend_modei, BLEND_MODE_SUB);
+	actions.render_mode_values["blend_mul"] = Pair<int *, int>(&blend_modei, BLEND_MODE_MUL);
+	actions.render_mode_values["blend_premul_alpha"] = Pair<int *, int>(&blend_modei, BLEND_MODE_PMALPHA);
+	actions.render_mode_values["blend_disabled"] = Pair<int *, int>(&blend_modei, BLEND_MODE_DISABLED);
 
 	actions.usage_flag_pointers["SCREEN_TEXTURE"] = &uses_screen_texture;
 	actions.usage_flag_pointers["texture_sdf"] = &uses_sdf;
@@ -2777,6 +2771,8 @@ void CanvasShaderData::set_code(const String &p_code) {
 	if (version.is_null()) {
 		version = MaterialStorage::get_singleton()->shaders.canvas_shader.version_create();
 	}
+
+	blend_mode = BlendMode(blend_modei);
 
 #if 0
 	print_line("**compiling shader:");
