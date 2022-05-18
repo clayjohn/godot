@@ -156,6 +156,9 @@ public:
 		GLuint canvas_quad_vertices;
 		GLuint canvas_quad_array;
 
+		GLuint indexed_quad_buffer;
+		GLuint indexed_quad_array;
+
 		GLuint particle_quad_vertices;
 		GLuint particle_quad_array;
 

@@ -681,6 +681,7 @@ void RasterizerCanvasGLES3::_render_item(RID p_render_target, const Item *p_item
 				}
 
 				// If the previous operation is not done yet, allocate a new buffer
+				/*
 				if (state.fences[state.current_buffer] != GLsync()) {
 					GLint syncStatus;
 					glGetSynciv(state.fences[state.current_buffer], GL_SYNC_STATUS, sizeof(GLint), nullptr, &syncStatus);
@@ -690,7 +691,7 @@ void RasterizerCanvasGLES3::_render_item(RID p_render_target, const Item *p_item
 						glDeleteSync(state.fences[state.current_buffer]);
 					}
 				}
-
+*/
 				glBindBufferBase(GL_UNIFORM_BUFFER, INSTANCE_UNIFORM_LOCATION, state.canvas_instance_data_buffers[state.current_buffer]);
 #ifdef JAVASCRIPT_ENABLED
 				//WebGL 2.0 does not support mapping buffers, so use slow glBufferData instead
@@ -710,7 +711,7 @@ void RasterizerCanvasGLES3::_render_item(RID p_render_target, const Item *p_item
 					glDrawArrays(prim[polygon->primitive], 0, pb->count);
 				}
 				glBindVertexArray(0);
-				state.fences[state.current_buffer] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+				//state.fences[state.current_buffer] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 				state.current_buffer = (state.current_buffer + 1) % state.canvas_instance_data_buffers.size();
 			} break;
@@ -887,7 +888,7 @@ void RasterizerCanvasGLES3::_render_item(RID p_render_target, const Item *p_item
 void RasterizerCanvasGLES3::_render_batch(uint32_t &r_index) {
 	if (r_index > 0) {
 		// If the previous operation is not done yet, allocate a new buffer
-		if (state.fences[state.current_buffer] != GLsync()) {
+		/*if (state.fences[state.current_buffer] != GLsync()) {
 			GLint syncStatus;
 			glGetSynciv(state.fences[state.current_buffer], GL_SYNC_STATUS, sizeof(GLint), nullptr, &syncStatus);
 			if (syncStatus == GL_UNSIGNALED) {
@@ -896,7 +897,7 @@ void RasterizerCanvasGLES3::_render_batch(uint32_t &r_index) {
 				glDeleteSync(state.fences[state.current_buffer]);
 			}
 		}
-
+*/
 		glBindBufferBase(GL_UNIFORM_BUFFER, INSTANCE_UNIFORM_LOCATION, state.canvas_instance_data_buffers[state.current_buffer]);
 #ifdef JAVASCRIPT_ENABLED
 		//WebGL 2.0 does not support mapping buffers, so use slow glBufferData instead
@@ -906,16 +907,27 @@ void RasterizerCanvasGLES3::_render_batch(uint32_t &r_index) {
 		memcpy(ubo, state.instance_data_array, sizeof(InstanceData) * r_index);
 		glUnmapBuffer(GL_UNIFORM_BUFFER);
 #endif
-		glBindVertexArray(data.canvas_quad_array);
+		/*
+				glBindVertexArray(data.canvas_quad_array);
+				if (state.current_primitive_points == 0) {
+					glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, r_index);
+				} else {
+					static const GLenum prim[5] = { GL_POINTS, GL_POINTS, GL_LINES, GL_TRIANGLES, GL_TRIANGLES };
+					glDrawArraysInstanced(prim[state.current_primitive_points], 0, state.current_primitive_points, r_index);
+				}
+				*/
+
 		if (state.current_primitive_points == 0) {
-			glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, r_index);
+			glBindVertexArray(data.indexed_quad_array);
+			glDrawElements(GL_TRIANGLES, r_index * 6, GL_UNSIGNED_INT, 0);
 		} else {
+			glBindVertexArray(data.canvas_quad_array);
 			static const GLenum prim[5] = { GL_POINTS, GL_POINTS, GL_LINES, GL_TRIANGLES, GL_TRIANGLES };
 			glDrawArraysInstanced(prim[state.current_primitive_points], 0, state.current_primitive_points, r_index);
 		}
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-		state.fences[state.current_buffer] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+		glBindVertexArray(0);
+		//state.fences[state.current_buffer] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 		state.current_buffer = (state.current_buffer + 1) % state.canvas_instance_data_buffers.size();
 		//copy the new data into the base of the batch
 		for (int i = 0; i < 4; i++) {
@@ -1385,6 +1397,31 @@ RasterizerCanvasGLES3::RasterizerCanvasGLES3(RasterizerStorageGLES3 *p_storage) 
 	}
 
 	{
+		const uint32_t no_of_instances = 512; //state.max_instances_per_batch
+
+		glGenVertexArrays(1, &data.indexed_quad_array);
+		glBindVertexArray(data.indexed_quad_array);
+		glBindBuffer(GL_ARRAY_BUFFER, data.canvas_quad_vertices);
+
+		const uint32_t num_indices = 6;
+		//const uint32_t num_vertices = 4;
+		const uint32_t quad_indices[num_indices] = { 0, 2, 1, 3, 2, 0 };
+
+		const uint32_t total_indices = no_of_instances * num_indices;
+		uint32_t *indices = new uint32_t[total_indices];
+		for (uint32_t i = 0; i < total_indices; i++) {
+			uint32_t quad = i / num_indices;
+			uint32_t quad_local = i % num_indices;
+			indices[i] = quad_indices[quad_local] + quad * num_indices;
+		}
+
+		glGenBuffers(1, &data.indexed_quad_buffer);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, data.indexed_quad_buffer);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32_t) * total_indices, indices, GL_STATIC_DRAW);
+		glBindVertexArray(0);
+	}
+
+	{
 		//particle quad buffers
 
 		glGenBuffers(1, &data.particle_quad_vertices);
@@ -1490,10 +1527,10 @@ RasterizerCanvasGLES3::RasterizerCanvasGLES3(RasterizerStorageGLES3 *p_storage) 
 	}
 
 	// Reserve 64 Uniform Buffers for instance data
-	state.canvas_instance_data_buffers.resize(64);
-	state.fences.resize(64);
-	glGenBuffers(64, state.canvas_instance_data_buffers.ptr());
-	for (int i = 0; i < 64; i++) {
+	state.canvas_instance_data_buffers.resize(1024);
+	state.fences.resize(1024);
+	glGenBuffers(1024, state.canvas_instance_data_buffers.ptr());
+	for (int i = 0; i < 1024; i++) {
 		state.fences[i] = GLsync();
 		glBindBuffer(GL_UNIFORM_BUFFER, state.canvas_instance_data_buffers[i]);
 		glBufferData(GL_UNIFORM_BUFFER, sizeof(InstanceData) * state.max_instances_per_batch, nullptr, GL_DYNAMIC_DRAW);
