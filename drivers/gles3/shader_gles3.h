@@ -244,6 +244,23 @@ public:
 
 	RS::ShaderNativeSourceCode version_get_native_source_code(RID p_version);
 
+	_FORCE_INLINE_ GLuint _version_get_shader_id(RID p_version, int p_variant, uint64_t p_specialization) {
+		ERR_FAIL_INDEX_V(p_variant, variant_count, 0);
+
+		Version *version = version_owner.get_or_null(p_version);
+		ERR_FAIL_COND_V(!version, 0);
+
+		if (version->variants.size() == 0) {
+			_initialize_version(version); //may lack initialization
+		}
+
+		Version::Specialization *spec = version->variants[p_variant].lookup_ptr(p_specialization);
+
+		ERR_FAIL_COND_V(!spec, 0);
+		ERR_FAIL_COND_V(!spec->ok, 0);
+		return spec->id;
+	}
+
 	void initialize(const String &p_general_defines = "", int p_base_texture_index = 0);
 	virtual ~ShaderGLES3();
 };

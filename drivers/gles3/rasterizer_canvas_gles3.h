@@ -183,6 +183,7 @@ public:
 		RID current_specular = RID();
 		GLES3::Texture *current_tex_ptr;
 		RID current_shader_version = RID();
+		GLuint current_shader_id = 0;
 		RS::PrimitiveType current_primitive = RS::PRIMITIVE_MAX;
 		uint32_t current_primitive_points = 0;
 		Item::Command::Type current_command = Item::Command::TYPE_RECT;

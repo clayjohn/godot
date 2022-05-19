@@ -114,7 +114,4 @@ layout(std140) uniform LightData { //ubo:2
 	Light light_data[MAX_LIGHTS];
 };
 
-layout(std140) uniform DrawDataInstances { //ubo:3
-
-	DrawData draw_data[MAX_DRAW_DATA_INSTANCES];
-};
+uniform DrawData draw_data[MAX_DRAW_DATA_INSTANCES];

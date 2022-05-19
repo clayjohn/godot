@@ -328,6 +328,7 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 	state.current_specular = RID();
 	state.canvas_texscreen_used = false;
 	state.current_shader_version = state.canvas_shader_default_version;
+	state.current_shader_id = GLES3::MaterialStorage::get_singleton()->shaders.canvas_shader._version_get_shader_id(state.current_shader_version, CanvasShaderGLES3::MODE_QUAD, 0);
 
 	for (int i = 0; i < p_item_count; i++) {
 		Item *ci = items[i];
@@ -507,6 +508,7 @@ void RasterizerCanvasGLES3::_render_item(RID p_render_target, const Item *p_item
 				}
 				_bind_canvas_texture(rect->texture, current_filter, current_repeat, r_index);
 				GLES3::MaterialStorage::get_singleton()->shaders.canvas_shader.version_bind_shader(state.current_shader_version, CanvasShaderGLES3::MODE_QUAD);
+				state.current_shader_id = GLES3::MaterialStorage::get_singleton()->shaders.canvas_shader._version_get_shader_id(state.current_shader_version, CanvasShaderGLES3::MODE_QUAD, 0);
 
 				Rect2 src_rect;
 				Rect2 dst_rect;
@@ -667,6 +669,7 @@ void RasterizerCanvasGLES3::_render_item(RID p_render_target, const Item *p_item
 				}
 				_bind_canvas_texture(polygon->texture, current_filter, current_repeat, r_index);
 				GLES3::MaterialStorage::get_singleton()->shaders.canvas_shader.version_bind_shader(state.current_shader_version, CanvasShaderGLES3::MODE_ATTRIBUTES);
+				state.current_shader_id = GLES3::MaterialStorage::get_singleton()->shaders.canvas_shader._version_get_shader_id(state.current_shader_version, CanvasShaderGLES3::MODE_ATTRIBUTES, 0);
 
 				state.current_primitive = polygon->primitive;
 				state.instance_data_array[r_index].modulation[0] = base_color.r;
@@ -692,15 +695,46 @@ void RasterizerCanvasGLES3::_render_item(RID p_render_target, const Item *p_item
 					}
 				}
 */
-				glBindBufferBase(GL_UNIFORM_BUFFER, INSTANCE_UNIFORM_LOCATION, state.canvas_instance_data_buffers[state.current_buffer]);
+				//glBindBufferBase(GL_UNIFORM_BUFFER, INSTANCE_UNIFORM_LOCATION, state.canvas_instance_data_buffers[state.current_buffer]);
 #ifdef JAVASCRIPT_ENABLED
 				//WebGL 2.0 does not support mapping buffers, so use slow glBufferData instead
-				glBufferData(GL_UNIFORM_BUFFER, sizeof(InstanceData), &state.instance_data_array[0], GL_DYNAMIC_DRAW);
+				//glBufferData(GL_UNIFORM_BUFFER, sizeof(InstanceData), &state.instance_data_array[0], GL_DYNAMIC_DRAW);
 #else
-				void *ubo = glMapBufferRange(GL_UNIFORM_BUFFER, 0, sizeof(InstanceData), GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
-				memcpy(ubo, &state.instance_data_array[0], sizeof(InstanceData));
-				glUnmapBuffer(GL_UNIFORM_BUFFER);
+				//void *ubo = glMapBufferRange(GL_UNIFORM_BUFFER, 0, sizeof(InstanceData), GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+				//memcpy(ubo, &state.instance_data_array[0], sizeof(InstanceData));
+				//glUnmapBuffer(GL_UNIFORM_BUFFER);
 #endif
+
+				InstanceData &d = state.instance_data_array[0];
+
+				String si = String("draw_data[") + itos(0);
+				glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].world_x\0")).utf8().ptr()), d.world[0], d.world[1]);
+				glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].world_y\0")).utf8().ptr()), d.world[2], d.world[3]);
+				glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].world_ofs\0")).utf8().ptr()), d.world[4], d.world[5]);
+				glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].color_texture_pixel_size\0")).utf8().ptr()), d.color_texture_pixel_size[0], d.color_texture_pixel_size[1]);
+				if (state.current_primitive_points > 0) {
+					glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].point_a\0")).utf8().ptr()), d.points[0], d.points[1]);
+					glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].point_b\0")).utf8().ptr()), d.points[2], d.points[3]);
+					glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].point_c\0")).utf8().ptr()), d.points[4], d.points[5]);
+					glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].uv_a\0")).utf8().ptr()), d.uvs[0], d.uvs[1]);
+					glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].uv_b\0")).utf8().ptr()), d.uvs[2], d.uvs[3]);
+					glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].uv_c\0")).utf8().ptr()), d.uvs[4], d.uvs[5]);
+					glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].color_a_rg\0")).utf8().ptr()), d.colors[0]);
+					glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].color_a_ba\0")).utf8().ptr()), d.colors[1]);
+					glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].color_b_rg\0")).utf8().ptr()), d.colors[2]);
+					glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].color_b_ba\0")).utf8().ptr()), d.colors[3]);
+					glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].color_c_rg\0")).utf8().ptr()), d.colors[4]);
+					glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].color_c_ba\0")).utf8().ptr()), d.colors[5]);
+				} else {
+					glUniform4fv(glGetUniformLocation(state.current_shader_id, (si + String("].modulation\0")).utf8().ptr()), 1, d.modulation);
+					glUniform4fv(glGetUniformLocation(state.current_shader_id, (si + String("].ninepatch_margins\0")).utf8().ptr()), 1, d.msdf);
+					glUniform4fv(glGetUniformLocation(state.current_shader_id, (si + String("].dst_rect\0")).utf8().ptr()), 1, d.dst_rect);
+					glUniform4fv(glGetUniformLocation(state.current_shader_id, (si + String("].src_rect\0")).utf8().ptr()), 1, d.src_rect);
+				}
+				glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].flags\0")).utf8().ptr()), d.flags);
+				glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].specular_shininess\0")).utf8().ptr()), d.specular_shininess);
+				glUniform4uiv(glGetUniformLocation(state.current_shader_id, (si + String("].lights\0")).utf8().ptr()), 1, d.lights);
+
 				glBindVertexArray(pb->vertex_array);
 
 				static const GLenum prim[5] = { GL_POINTS, GL_LINES, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP };
@@ -713,7 +747,7 @@ void RasterizerCanvasGLES3::_render_item(RID p_render_target, const Item *p_item
 				glBindVertexArray(0);
 				//state.fences[state.current_buffer] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
-				state.current_buffer = (state.current_buffer + 1) % state.canvas_instance_data_buffers.size();
+				//state.current_buffer = (state.current_buffer + 1) % state.canvas_instance_data_buffers.size();
 			} break;
 
 			case Item::Command::TYPE_PRIMITIVE: {
@@ -726,6 +760,7 @@ void RasterizerCanvasGLES3::_render_item(RID p_render_target, const Item *p_item
 				}
 				_bind_canvas_texture(RID(), current_filter, current_repeat, r_index);
 				GLES3::MaterialStorage::get_singleton()->shaders.canvas_shader.version_bind_shader(state.current_shader_version, CanvasShaderGLES3::MODE_PRIMITIVE);
+				state.current_shader_id = GLES3::MaterialStorage::get_singleton()->shaders.canvas_shader._version_get_shader_id(state.current_shader_version, CanvasShaderGLES3::MODE_PRIMITIVE, 0);
 
 				for (uint32_t j = 0; j < MIN(3u, primitive->point_count); j++) {
 					state.instance_data_array[r_index].points[j * 2 + 0] = primitive->points[j].x;
@@ -898,14 +933,14 @@ void RasterizerCanvasGLES3::_render_batch(uint32_t &r_index) {
 			}
 		}
 */
-		glBindBufferBase(GL_UNIFORM_BUFFER, INSTANCE_UNIFORM_LOCATION, state.canvas_instance_data_buffers[state.current_buffer]);
+		//glBindBufferBase(GL_UNIFORM_BUFFER, INSTANCE_UNIFORM_LOCATION, state.canvas_instance_data_buffers[state.current_buffer]);
 #ifdef JAVASCRIPT_ENABLED
 		//WebGL 2.0 does not support mapping buffers, so use slow glBufferData instead
-		glBufferData(GL_UNIFORM_BUFFER, sizeof(InstanceData) * r_index, state.instance_data_array, GL_DYNAMIC_DRAW);
+		//glBufferData(GL_UNIFORM_BUFFER, sizeof(InstanceData) * r_index, state.instance_data_array, GL_DYNAMIC_DRAW);
 #else
-		void *ubo = glMapBufferRange(GL_UNIFORM_BUFFER, 0, sizeof(InstanceData) * r_index, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
-		memcpy(ubo, state.instance_data_array, sizeof(InstanceData) * r_index);
-		glUnmapBuffer(GL_UNIFORM_BUFFER);
+		//void *ubo = glMapBufferRange(GL_UNIFORM_BUFFER, 0, sizeof(InstanceData) * r_index, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+		//memcpy(ubo, state.instance_data_array, sizeof(InstanceData) * r_index);
+		//glUnmapBuffer(GL_UNIFORM_BUFFER);
 #endif
 		/*
 				glBindVertexArray(data.canvas_quad_array);
@@ -917,6 +952,41 @@ void RasterizerCanvasGLES3::_render_batch(uint32_t &r_index) {
 				}
 				*/
 
+		/* WARNING */
+		// This is very bad code, glGetUniformLocation is slow and so are string operations
+		// If this is promising, then we need to cache everything in ShaderGLES3
+		for (int i = 0; i < (int)r_index; i++) {
+			InstanceData &d = state.instance_data_array[i];
+
+			String si = String("draw_data[") + itos(i);
+			glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].world_x\0")).utf8().ptr()), d.world[0], d.world[1]);
+			glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].world_y\0")).utf8().ptr()), d.world[2], d.world[3]);
+			glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].world_ofs\0")).utf8().ptr()), d.world[4], d.world[5]);
+			glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].color_texture_pixel_size\0")).utf8().ptr()), d.color_texture_pixel_size[0], d.color_texture_pixel_size[1]);
+			if (state.current_primitive_points > 0) {
+				glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].point_a\0")).utf8().ptr()), d.points[0], d.points[1]);
+				glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].point_b\0")).utf8().ptr()), d.points[2], d.points[3]);
+				glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].point_c\0")).utf8().ptr()), d.points[4], d.points[5]);
+				glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].uv_a\0")).utf8().ptr()), d.uvs[0], d.uvs[1]);
+				glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].uv_b\0")).utf8().ptr()), d.uvs[2], d.uvs[3]);
+				glUniform2f(glGetUniformLocation(state.current_shader_id, (si + String("].uv_c\0")).utf8().ptr()), d.uvs[4], d.uvs[5]);
+				glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].color_a_rg\0")).utf8().ptr()), d.colors[0]);
+				glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].color_a_ba\0")).utf8().ptr()), d.colors[1]);
+				glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].color_b_rg\0")).utf8().ptr()), d.colors[2]);
+				glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].color_b_ba\0")).utf8().ptr()), d.colors[3]);
+				glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].color_c_rg\0")).utf8().ptr()), d.colors[4]);
+				glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].color_c_ba\0")).utf8().ptr()), d.colors[5]);
+			} else {
+				glUniform4fv(glGetUniformLocation(state.current_shader_id, (si + String("].modulation\0")).utf8().ptr()), 1, d.modulation);
+				glUniform4fv(glGetUniformLocation(state.current_shader_id, (si + String("].ninepatch_margins\0")).utf8().ptr()), 1, d.msdf);
+				glUniform4fv(glGetUniformLocation(state.current_shader_id, (si + String("].dst_rect\0")).utf8().ptr()), 1, d.dst_rect);
+				glUniform4fv(glGetUniformLocation(state.current_shader_id, (si + String("].src_rect\0")).utf8().ptr()), 1, d.src_rect);
+			}
+			glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].flags\0")).utf8().ptr()), d.flags);
+			glUniform1ui(glGetUniformLocation(state.current_shader_id, (si + String("].specular_shininess\0")).utf8().ptr()), d.specular_shininess);
+			glUniform4uiv(glGetUniformLocation(state.current_shader_id, (si + String("].lights\0")).utf8().ptr()), 1, d.lights);
+		}
+
 		if (state.current_primitive_points == 0) {
 			glBindVertexArray(data.indexed_quad_array);
 			glDrawElements(GL_TRIANGLES, r_index * 6, GL_UNSIGNED_INT, 0);
@@ -925,10 +995,10 @@ void RasterizerCanvasGLES3::_render_batch(uint32_t &r_index) {
 			static const GLenum prim[5] = { GL_POINTS, GL_POINTS, GL_LINES, GL_TRIANGLES, GL_TRIANGLES };
 			glDrawArraysInstanced(prim[state.current_primitive_points], 0, state.current_primitive_points, r_index);
 		}
-		glBindBuffer(GL_UNIFORM_BUFFER, 0);
+		//glBindBuffer(GL_UNIFORM_BUFFER, 0);
 		glBindVertexArray(0);
 		//state.fences[state.current_buffer] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-		state.current_buffer = (state.current_buffer + 1) % state.canvas_instance_data_buffers.size();
+		//state.current_buffer = (state.current_buffer + 1) % state.canvas_instance_data_buffers.size();
 		//copy the new data into the base of the batch
 		for (int i = 0; i < 4; i++) {
 			state.instance_data_array[0].modulation[i] = state.instance_data_array[r_index].modulation[i];
@@ -1523,7 +1593,7 @@ RasterizerCanvasGLES3::RasterizerCanvasGLES3(RasterizerStorageGLES3 *p_storage) 
 		state.max_instances_per_batch = 128;
 	} else {
 		state.max_lights_per_render = 256;
-		state.max_instances_per_batch = 512;
+		state.max_instances_per_batch = 128;
 	}
 
 	// Reserve 64 Uniform Buffers for instance data
