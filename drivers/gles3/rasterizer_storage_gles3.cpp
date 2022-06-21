@@ -8337,6 +8337,7 @@ void RasterizerStorageGLES3::initialize() {
 	frame.count = 0;
 	frame.delta = 0;
 	frame.current_rt = nullptr;
+	frame.max_texture_binding = 0;
 	config.keep_original_textures = false;
 	config.generate_wireframes = false;
 	config.use_texture_array_environment = GLOBAL_GET("rendering/quality/reflections/texture_array_reflections");

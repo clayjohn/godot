@@ -182,6 +182,7 @@ void RasterizerCanvasGLES3::_legacy_canvas_render_item(Item *p_ci, RenderItemSta
 			}
 
 			int tc = material_ptr->textures.size();
+			storage->frame.max_texture_binding = MAX(tc, storage->frame.max_texture_binding);
 			RID *textures = material_ptr->textures.ptrw();
 			ShaderLanguage::ShaderNode::Uniform::Hint *texture_hints = shader_ptr->texture_hints.ptrw();
 
@@ -1262,6 +1263,7 @@ void RasterizerCanvasGLES3::render_joined_item(const BItemJoined &p_bij, RenderI
 			}
 
 			int tc = material_ptr->textures.size();
+			storage->frame.max_texture_binding = MAX(tc, storage->frame.max_texture_binding);
 			RID *textures = material_ptr->textures.ptrw();
 			ShaderLanguage::ShaderNode::Uniform::Hint *texture_hints = shader_ptr->texture_hints.ptrw();
 

@@ -1491,6 +1491,7 @@ public:
 		float time[4];
 		float delta;
 		uint64_t count;
+		int max_texture_binding;
 
 	} frame;
 

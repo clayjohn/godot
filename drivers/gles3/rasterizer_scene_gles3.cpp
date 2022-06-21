@@ -1145,6 +1145,7 @@ bool RasterizerSceneGLES3::_setup_material(RasterizerStorageGLES3::Material *p_m
 	}
 
 	int tc = p_material->textures.size();
+	storage->frame.max_texture_binding = MAX(tc, storage->frame.max_texture_binding);
 	RID *textures = p_material->textures.ptrw();
 	ShaderLanguage::ShaderNode::Uniform::Hint *texture_hints = p_material->shader->texture_hints.ptrw();
 	const ShaderLanguage::DataType *texture_types = p_material->shader->texture_types.ptr();

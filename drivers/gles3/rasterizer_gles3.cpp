@@ -248,6 +248,18 @@ void RasterizerGLES3::set_current_render_target(RID p_render_target) {
 		glViewport(0, 0, OS::get_singleton()->get_window_size().width, OS::get_singleton()->get_window_size().height);
 		glBindFramebuffer(GL_FRAMEBUFFER, RasterizerStorageGLES3::system_fbo);
 	}
+	// Unbind user textures that have been set since the last render target change.
+	// Unbind the internal slots that may have been used by  Godot.
+	for (int i = 1; i <= 13; i++) {
+		glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - i);
+		glBindTexture(GL_TEXTURE_2D, 0);
+	}
+	// Unbind from 0 up to the max texture slot used by the user.
+	for (int i = 0; i < storage->frame.max_texture_binding + 2; i++) {
+		glActiveTexture(GL_TEXTURE0 + i);
+		glBindTexture(GL_TEXTURE_2D, 0);
+	}
+	storage->frame.max_texture_binding = 0;
 }
 
 void RasterizerGLES3::restore_render_target(bool p_3d_was_drawn) {
