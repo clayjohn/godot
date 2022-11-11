@@ -493,9 +493,6 @@ void DisplayServerAndroid::notify_surface_changed(int p_width, int p_height) {
 DisplayServerAndroid::DisplayServerAndroid(const String &p_rendering_driver, DisplayServer::WindowMode p_mode, DisplayServer::VSyncMode p_vsync_mode, uint32_t p_flags, const Vector2i *p_position, const Vector2i &p_resolution, Error &r_error) {
 	rendering_driver = p_rendering_driver;
 
-	// TODO: rendering_driver is broken, change when different drivers are supported again
-	rendering_driver = "vulkan";
-
 	keep_screen_on = GLOBAL_GET("display/window/energy_saving/keep_screen_on");
 
 #if defined(GLES3_ENABLED)
@@ -503,7 +500,6 @@ DisplayServerAndroid::DisplayServerAndroid(const String &p_rendering_driver, Dis
 		bool gl_initialization_error = false;
 
 		if (RasterizerGLES3::is_viable() == OK) {
-			RasterizerGLES3::register_config();
 			RasterizerGLES3::make_current();
 		} else {
 			gl_initialization_error = true;
