@@ -1,5 +1,7 @@
 def can_build(env, platform):
-    if platform in ("linuxbsd", "windows", "android"):
+    if platform in ("linuxbsd", "windows"):
+        return env["openxr"]
+    elif platform == "android" and not env["opengl3"]:
         return env["openxr"]
     else:
         # not supported on these platforms

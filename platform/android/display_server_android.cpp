@@ -41,6 +41,10 @@
 #include "platform/android/vulkan/vulkan_context_android.h"
 #include "servers/rendering/renderer_rd/renderer_compositor_rd.h"
 #endif
+#ifdef GLES3_ENABLED
+#include "drivers/gles3/rasterizer_gles3.h"
+#include <EGL/egl.h>
+#endif
 
 DisplayServerAndroid *DisplayServerAndroid::get_singleton() {
 	return static_cast<DisplayServerAndroid *>(DisplayServer::get_singleton());
@@ -323,7 +327,7 @@ int64_t DisplayServerAndroid::window_get_native_handle(HandleType p_handle_type,
 		}
 #ifdef GLES3_ENABLED
 		case OPENGL_CONTEXT: {
-			return eglGetCurrentContext();
+			return reinterpret_cast<int64_t>(eglGetCurrentContext());
 		}
 #endif
 		default: {
@@ -499,7 +503,7 @@ DisplayServerAndroid::DisplayServerAndroid(const String &p_rendering_driver, Dis
 	if (rendering_driver == "opengl3") {
 		bool gl_initialization_error = false;
 
-		if (RasterizerGLES3::is_viable() == OK) {
+		if (true) {
 			RasterizerGLES3::make_current();
 		} else {
 			gl_initialization_error = true;
