@@ -116,7 +116,3 @@ layout(std140) uniform LightData { //ubo:2
 	Light light_array[MAX_LIGHTS];
 };
 #endif // DISABLE_LIGHTING
-layout(std140) uniform DrawDataInstances { //ubo:3
-
-	DrawData draw_data[MAX_DRAW_DATA_INSTANCES];
-};

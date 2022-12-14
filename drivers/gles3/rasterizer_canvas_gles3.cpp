@@ -568,9 +568,9 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 	_new_batch(batch_broken, index);
 
 	// Override the start position and index as we want to start from where we finished off last time.
-	state.canvas_instance_batches[state.current_batch_index].start = r_last_index * sizeof(InstanceData);
+	state.canvas_instance_batches[state.current_batch_index].start = r_last_index;
 	index = 0;
-	_align_instance_data_buffer(index);
+	//_align_instance_data_buffer(index);
 
 	for (int i = 0; i < p_item_count; i++) {
 		Item *ci = items[i];
@@ -628,14 +628,14 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 	}
 
 	// Copy over all data needed for rendering.
-	glBindBuffer(GL_UNIFORM_BUFFER, state.canvas_instance_data_buffers[state.current_buffer].ubo);
+	glBindBuffer(GL_ARRAY_BUFFER, state.canvas_instance_data_buffers[state.current_buffer].ubo);
 #ifdef WEB_ENABLED
-	glBufferSubData(GL_UNIFORM_BUFFER, r_last_index * sizeof(InstanceData), sizeof(InstanceData) * index, state.instance_data_array);
+	glBufferSubData(GL_ARRAY_BUFFER, r_last_index * sizeof(InstanceData), sizeof(InstanceData) * index, state.instance_data_array);
 #else
 	// On Desktop and mobile we map the memory without synchronizing for maximum speed.
-	void *ubo = glMapBufferRange(GL_UNIFORM_BUFFER, r_last_index * sizeof(InstanceData), index * sizeof(InstanceData), GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+	void *ubo = glMapBufferRange(GL_ARRAY_BUFFER, r_last_index * sizeof(InstanceData), index * sizeof(InstanceData), GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 	memcpy(ubo, state.instance_data_array, index * sizeof(InstanceData));
-	glUnmapBuffer(GL_UNIFORM_BUFFER);
+	glUnmapBuffer(GL_ARRAY_BUFFER);
 #endif
 
 	glDisable(GL_SCISSOR_TEST);
@@ -1214,26 +1214,40 @@ void RasterizerCanvasGLES3::_render_batch(Light *p_lights, uint32_t p_index) {
 	static const GLenum prim[5] = { GL_POINTS, GL_LINES, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP };
 
 	_bind_canvas_texture(state.canvas_instance_batches[p_index].tex, state.canvas_instance_batches[p_index].filter, state.canvas_instance_batches[p_index].repeat);
+	/*
+		// Bind the region of the UBO used by this batch.
+		// If region exceeds the boundary of the UBO, just ignore.
+		uint32_t range_bytes = data.max_instances_per_batch * sizeof(InstanceData);
+		if (state.canvas_instance_batches[p_index].start >= (data.max_instances_per_ubo - 1) * sizeof(InstanceData)) {
+			return;
+		} else if (state.canvas_instance_batches[p_index].start >= (data.max_instances_per_ubo - data.max_instances_per_batch) * sizeof(InstanceData)) {
+			// If we have less than a full batch at the end, we can just draw it anyway.
+			// OpenGL will complain about the UBO being smaller than expected, but it should render fine.
+			range_bytes = (data.max_instances_per_ubo - 1) * sizeof(InstanceData) - state.canvas_instance_batches[p_index].start;
+		}
 
-	// Bind the region of the UBO used by this batch.
-	// If region exceeds the boundary of the UBO, just ignore.
-	uint32_t range_bytes = data.max_instances_per_batch * sizeof(InstanceData);
-	if (state.canvas_instance_batches[p_index].start >= (data.max_instances_per_ubo - 1) * sizeof(InstanceData)) {
-		return;
-	} else if (state.canvas_instance_batches[p_index].start >= (data.max_instances_per_ubo - data.max_instances_per_batch) * sizeof(InstanceData)) {
-		// If we have less than a full batch at the end, we can just draw it anyway.
-		// OpenGL will complain about the UBO being smaller than expected, but it should render fine.
-		range_bytes = (data.max_instances_per_ubo - 1) * sizeof(InstanceData) - state.canvas_instance_batches[p_index].start;
-	}
-
-	uint32_t range_start = state.canvas_instance_batches[p_index].start;
-	glBindBufferRange(GL_UNIFORM_BUFFER, INSTANCE_UNIFORM_LOCATION, state.canvas_instance_data_buffers[state.current_buffer].ubo, range_start, range_bytes);
+		uint32_t range_start = state.canvas_instance_batches[p_index].start;
+		glBindBufferRange(GL_UNIFORM_BUFFER, INSTANCE_UNIFORM_LOCATION, state.canvas_instance_data_buffers[state.current_buffer].ubo, range_start, range_bytes);
+	*/
 
 	switch (state.canvas_instance_batches[p_index].command_type) {
 		case Item::Command::TYPE_RECT:
 		case Item::Command::TYPE_NINEPATCH: {
 			glBindVertexArray(data.indexed_quad_array);
-			glDrawElements(GL_TRIANGLES, state.canvas_instance_batches[p_index].instance_count * 6, GL_UNSIGNED_INT, 0);
+			glBindBuffer(GL_ARRAY_BUFFER, state.canvas_instance_data_buffers[state.current_buffer].ubo);
+			uint32_t range_start = state.canvas_instance_batches[p_index].start * sizeof(InstanceData);
+			for (uint32_t i = 6; i <= 11; i++) {
+				glEnableVertexAttribArray(i);
+				glVertexAttribPointer(i, 4, GL_FLOAT, GL_FALSE, sizeof(InstanceData), CAST_INT_TO_UCHAR_PTR(range_start + (i - 6) * 4 * sizeof(float)));
+				glVertexAttribDivisor(i, 1);
+			}
+			for (uint32_t i = 12; i <= 13; i++) {
+				glEnableVertexAttribArray(i);
+				glVertexAttribIPointer(i, 4, GL_UNSIGNED_INT, sizeof(InstanceData), CAST_INT_TO_UCHAR_PTR(range_start + (i - 6) * 4 * sizeof(float)));
+				glVertexAttribDivisor(i, 1);
+			}
+
+			glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, state.canvas_instance_batches[p_index].instance_count);
 			glBindBuffer(GL_UNIFORM_BUFFER, 0);
 			glBindVertexArray(0);
 
@@ -1247,14 +1261,26 @@ void RasterizerCanvasGLES3::_render_batch(Light *p_lights, uint32_t p_index) {
 
 			glBindVertexArray(pb->vertex_array);
 
+			uint32_t range_start = state.canvas_instance_batches[p_index].start * sizeof(InstanceData);
+			for (uint32_t i = 6; i <= 11; i++) {
+				glEnableVertexAttribArray(i);
+				glVertexAttribPointer(i, 4, GL_FLOAT, GL_FALSE, sizeof(InstanceData), CAST_INT_TO_UCHAR_PTR(range_start + (i - 6) * 4 * sizeof(float)));
+				glVertexAttribDivisor(i, 1);
+			}
+			for (uint32_t i = 12; i <= 13; i++) {
+				glEnableVertexAttribArray(i);
+				glVertexAttribIPointer(i, 4, GL_UNSIGNED_INT, sizeof(InstanceData), CAST_INT_TO_UCHAR_PTR(range_start + (i - 6) * 4 * sizeof(float)));
+				glVertexAttribDivisor(i, 1);
+			}
+
 			if (pb->color_disabled && pb->color != Color(1.0, 1.0, 1.0, 1.0)) {
 				glVertexAttrib4f(RS::ARRAY_COLOR, pb->color.r, pb->color.g, pb->color.b, pb->color.a);
 			}
 
 			if (pb->index_buffer != 0) {
-				glDrawElements(prim[polygon->primitive], pb->count, GL_UNSIGNED_INT, nullptr);
+				glDrawElementsInstanced(prim[polygon->primitive], pb->count, GL_UNSIGNED_INT, nullptr, 1);
 			} else {
-				glDrawArrays(prim[polygon->primitive], 0, pb->count);
+				glDrawArraysInstanced(prim[polygon->primitive], 0, pb->count, 1);
 			}
 			glBindVertexArray(0);
 			glBindBuffer(GL_UNIFORM_BUFFER, 0);
@@ -1267,12 +1293,24 @@ void RasterizerCanvasGLES3::_render_batch(Light *p_lights, uint32_t p_index) {
 
 		case Item::Command::TYPE_PRIMITIVE: {
 			glBindVertexArray(data.canvas_quad_array);
+
+			uint32_t range_start = state.canvas_instance_batches[p_index].start * sizeof(InstanceData);
+			for (uint32_t i = 6; i <= 10; i++) {
+				glEnableVertexAttribArray(i);
+				glVertexAttribPointer(i, 4, GL_FLOAT, GL_FALSE, sizeof(InstanceData), CAST_INT_TO_UCHAR_PTR(range_start + (i - 6) * 4 * sizeof(float)));
+				glVertexAttribDivisor(i, 1);
+			}
+			for (uint32_t i = 11; i <= 13; i++) {
+				glEnableVertexAttribArray(i);
+				glVertexAttribIPointer(i, 4, GL_UNSIGNED_INT, sizeof(InstanceData), CAST_INT_TO_UCHAR_PTR(range_start + (i - 6) * 4 * sizeof(float)));
+				glVertexAttribDivisor(i, 1);
+			}
+
 			const GLenum primitive[5] = { GL_POINTS, GL_POINTS, GL_LINES, GL_TRIANGLES, GL_TRIANGLES };
 			int instance_count = state.canvas_instance_batches[p_index].instance_count;
+			ERR_FAIL_COND(instance_count <= 0);
 			if (instance_count > 1) {
 				glDrawArraysInstanced(primitive[state.canvas_instance_batches[p_index].primitive_points], 0, state.canvas_instance_batches[p_index].primitive_points, instance_count);
-			} else {
-				glDrawArrays(primitive[state.canvas_instance_batches[p_index].primitive_points], 0, state.canvas_instance_batches[p_index].primitive_points);
 			}
 			glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
@@ -1368,6 +1406,19 @@ void RasterizerCanvasGLES3::_render_batch(Light *p_lights, uint32_t p_index) {
 				index_array_gl = mesh_storage->mesh_surface_get_index_buffer(surface, 0);
 				bool use_index_buffer = false;
 				glBindVertexArray(vertex_array_gl);
+
+				uint32_t range_start = state.canvas_instance_batches[p_index].start * sizeof(InstanceData);
+				for (uint32_t i = 6; i <= 11; i++) {
+					glEnableVertexAttribArray(i);
+					glVertexAttribPointer(i, 4, GL_FLOAT, GL_FALSE, sizeof(InstanceData), CAST_INT_TO_UCHAR_PTR(range_start + (i - 6) * 4 * sizeof(float)));
+					glVertexAttribDivisor(i, 1);
+				}
+				for (uint32_t i = 12; i <= 13; i++) {
+					glEnableVertexAttribArray(i);
+					glVertexAttribIPointer(i, 4, GL_UNSIGNED_INT, sizeof(InstanceData), CAST_INT_TO_UCHAR_PTR(range_start + (i - 6) * 4 * sizeof(float)));
+					glVertexAttribDivisor(i, 1);
+				}
+
 				if (index_array_gl != 0) {
 					glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_array_gl);
 					use_index_buffer = true;
@@ -1394,18 +1445,11 @@ void RasterizerCanvasGLES3::_render_batch(Light *p_lights, uint32_t p_index) {
 				}
 
 				GLenum primitive_gl = prim[int(primitive)];
-				if (instance_count == 1) {
-					if (use_index_buffer) {
-						glDrawElements(primitive_gl, mesh_storage->mesh_surface_get_vertices_drawn_count(surface), mesh_storage->mesh_surface_get_index_type(surface), 0);
-					} else {
-						glDrawArrays(primitive_gl, 0, mesh_storage->mesh_surface_get_vertices_drawn_count(surface));
-					}
-				} else if (instance_count > 1) {
-					if (use_index_buffer) {
-						glDrawElementsInstanced(primitive_gl, mesh_storage->mesh_surface_get_vertices_drawn_count(surface), mesh_storage->mesh_surface_get_index_type(surface), 0, instance_count);
-					} else {
-						glDrawArraysInstanced(primitive_gl, 0, mesh_storage->mesh_surface_get_vertices_drawn_count(surface), instance_count);
-					}
+
+				if (use_index_buffer) {
+					glDrawElementsInstanced(primitive_gl, mesh_storage->mesh_surface_get_vertices_drawn_count(surface), mesh_storage->mesh_surface_get_index_type(surface), 0, instance_count);
+				} else {
+					glDrawArraysInstanced(primitive_gl, 0, mesh_storage->mesh_surface_get_vertices_drawn_count(surface), instance_count);
 				}
 
 				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -1455,11 +1499,11 @@ void RasterizerCanvasGLES3::_new_batch(bool &r_batch_broken, uint32_t &r_index) 
 	// Copy the properties of the current batch, we will manually update the things that changed.
 	Batch new_batch = state.canvas_instance_batches[state.current_batch_index];
 	new_batch.instance_count = 0;
-	new_batch.start = state.canvas_instance_batches[state.current_batch_index].start + state.canvas_instance_batches[state.current_batch_index].instance_count * sizeof(InstanceData);
+	new_batch.start = state.canvas_instance_batches[state.current_batch_index].start + state.canvas_instance_batches[state.current_batch_index].instance_count;
 
 	state.current_batch_index++;
 	state.canvas_instance_batches.push_back(new_batch);
-	_align_instance_data_buffer(r_index);
+	//_align_instance_data_buffer(r_index);
 }
 
 bool RasterizerCanvasGLES3::_bind_material(GLES3::CanvasMaterialData *p_material_data, CanvasShaderGLES3::ShaderVariant p_variant, uint64_t p_specialization) {
@@ -2414,8 +2458,8 @@ void RasterizerCanvasGLES3::_allocate_instance_data_buffer() {
 	GLuint new_buffers[3];
 	glGenBuffers(3, new_buffers);
 	// Batch UBO.
-	glBindBuffer(GL_UNIFORM_BUFFER, new_buffers[0]);
-	glBufferData(GL_UNIFORM_BUFFER, data.max_instance_buffer_size, nullptr, GL_STREAM_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, new_buffers[0]);
+	glBufferData(GL_ARRAY_BUFFER, data.max_instance_buffer_size, nullptr, GL_STREAM_DRAW);
 	// Light uniform buffer.
 	glBindBuffer(GL_UNIFORM_BUFFER, new_buffers[1]);
 	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightUniform) * data.max_lights_per_render, nullptr, GL_STREAM_DRAW);
@@ -2431,6 +2475,7 @@ void RasterizerCanvasGLES3::_allocate_instance_data_buffer() {
 	db.last_frame_used = RSG::rasterizer->get_frame_number();
 	state.canvas_instance_data_buffers.insert(state.current_buffer, db);
 	state.current_buffer = state.current_buffer % state.canvas_instance_data_buffers.size();
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
@@ -2599,7 +2644,7 @@ RasterizerCanvasGLES3::RasterizerCanvasGLES3() {
 		data.max_instances_per_batch = 128;
 	} else {
 		data.max_lights_per_render = 256;
-		data.max_instances_per_batch = 512;
+		data.max_instances_per_batch = 2048;
 	}
 
 	// Reserve 3 Uniform Buffers for instance data Frame N, N+1 and N+2
@@ -2612,8 +2657,8 @@ RasterizerCanvasGLES3::RasterizerCanvasGLES3() {
 		GLuint new_buffers[3];
 		glGenBuffers(3, new_buffers);
 		// Batch UBO.
-		glBindBuffer(GL_UNIFORM_BUFFER, new_buffers[0]);
-		glBufferData(GL_UNIFORM_BUFFER, data.max_instance_buffer_size, nullptr, GL_STREAM_DRAW);
+		glBindBuffer(GL_ARRAY_BUFFER, new_buffers[0]);
+		glBufferData(GL_ARRAY_BUFFER, data.max_instance_buffer_size, nullptr, GL_STREAM_DRAW);
 		// Light uniform buffer.
 		glBindBuffer(GL_UNIFORM_BUFFER, new_buffers[1]);
 		glBufferData(GL_UNIFORM_BUFFER, sizeof(LightUniform) * data.max_lights_per_render, nullptr, GL_STREAM_DRAW);
@@ -2628,13 +2673,14 @@ RasterizerCanvasGLES3::RasterizerCanvasGLES3() {
 		db.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 		state.canvas_instance_data_buffers[i] = db;
 	}
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 	state.instance_data_array = memnew_arr(InstanceData, data.max_instances_per_ubo);
 	state.light_uniforms = memnew_arr(LightUniform, data.max_lights_per_render);
 
 	{
-		const uint32_t no_of_instances = data.max_instances_per_batch;
+		const uint32_t no_of_instances = 1;
 
 		glGenVertexArrays(1, &data.indexed_quad_array);
 		glBindVertexArray(data.indexed_quad_array);
