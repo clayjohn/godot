@@ -253,6 +253,7 @@ public:
 		// Position in the UBO measured in bytes
 		uint32_t start = 0;
 		uint32_t instance_count = 0;
+		uint64_t spec = 0;
 
 		RID tex;
 		RS::CanvasItemTextureFilter filter = RS::CANVAS_ITEM_TEXTURE_FILTER_MAX;
@@ -291,6 +292,9 @@ public:
 		uint32_t current_buffer = 0;
 		uint32_t current_buffer_index = 0;
 		uint32_t current_batch_index = 0;
+
+		RID current_shader_version = RID();
+		GLuint current_shader_id = 0;
 
 		InstanceData *instance_data_array = nullptr;
 
@@ -359,6 +363,7 @@ public:
 	void _add_to_batch(uint32_t &r_index, bool &r_batch_broken);
 	void _allocate_instance_data_buffer();
 	void _align_instance_data_buffer(uint32_t &r_index);
+	void _upload_single_instance_batch(uint32_t start, bool use_primitive = false);
 
 	void set_time(double p_time);
 

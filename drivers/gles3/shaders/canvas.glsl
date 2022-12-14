@@ -31,28 +31,45 @@ layout(location = 5) in highp uvec4 instance_color_custom_data; // Color packed 
 #endif // USE_ATTRIBUTES
 
 #include "stdlib_inc.glsl"
+#include "canvas_uniforms_inc.glsl"
 
 #ifdef SINGLE_INSTANCE
-layout(std140) uniform DrawDataInstances { //ubo:3
-	DrawData draw_data;
-};
+uniform DrawData draw_data;
 
 #define read_draw_data_world_x draw_data.world_x
 #define read_draw_data_world_y draw_data.world_y
+#define read_draw_data_world_ofs draw_data.world_ofs
 #define read_draw_data_color_texture_pixel_size draw_data.color_texture_pixel_size
+
+#ifdef USE_PRIMITIVE
+
+#define read_draw_data_point_a draw_data.point_a
+#define read_draw_data_point_b draw_data.point_b
+#define read_draw_data_point_c draw_data.point_c
+#define read_draw_data_uv_a draw_data.uv_a
+#define read_draw_data_uv_b draw_data.uv_b
+#define read_draw_data_uv_c draw_data.uv_c
+
+#define read_draw_data_color_a_rg draw_data.color_a_rg
+#define read_draw_data_color_a_ba draw_data.color_a_ba
+#define read_draw_data_color_b_rg draw_data.color_b_rg
+#define read_draw_data_color_b_ba draw_data.color_b_ba
+#define read_draw_data_color_c_rg draw_data.color_c_rg
+#define read_draw_data_color_c_ba draw_data.color_c_ba
+
+#else
+
+#define read_draw_data_modulation draw_data.modulation
 #define read_draw_data_ninepatch_margins draw_data.ninepatch_margins
-#define read_draw_data_dst_rect_z draw_data.dst_rect.z
-#define read_draw_data_dst_rect_w draw_data.dst_rect.w
+#define read_draw_data_dst_rect draw_data.dst_rect
 #define read_draw_data_src_rect draw_data.src_rect
+
+#endif
+
 #define read_draw_data_flags draw_data.flags
 #define read_draw_data_specular_shininess draw_data.specular_shininess
 #define read_draw_data_lights draw_data.lights
 #else
-
-//layout(std140) uniform DrawDataInstances { //ubo:3
-//	DrawData draw_data[MAX_DRAW_DATA_INSTANCES];
-//};
-//#define read_draw_data draw_data[draw_data_instance]
 
 layout(location = 6) in highp vec4 attrib_A;
 layout(location = 7) in highp vec4 attrib_B;
@@ -116,7 +133,7 @@ flat out vec4 varying_E;
 #endif
 flat out uvec2 varying_F;
 flat out uvec4 varying_G;
-#endif
+#endif // SINGLE_INSTANCE
 
 // This needs to be outside clang-format so the ubo comment is in the right place
 #ifdef MATERIAL_UNIFORMS_USED
@@ -127,7 +144,6 @@ layout(std140) uniform MaterialUniforms{ //ubo:4
 };
 #endif
 /* clang-format on */
-#include "canvas_uniforms_inc.glsl"
 
 out vec2 uv_interp;
 out vec4 color_interp;
@@ -142,6 +158,7 @@ out vec2 pixel_size_interp;
 #GLOBALS
 
 void main() {
+#ifndef SINGLE_INSTANCE
 	varying_A = vec4(read_draw_data_world_x, read_draw_data_world_y);
 	varying_B = read_draw_data_color_texture_pixel_size;
 #ifndef USE_PRIMITIVE
@@ -157,6 +174,7 @@ void main() {
 
 	varying_F = uvec2(read_draw_data_flags, read_draw_data_specular_shininess);
 	varying_G = read_draw_data_lights;
+#endif // SINGLE_INSTANCE
 
 	vec4 instance_custom = vec4(0.0);
 	int draw_data_instance;
@@ -273,9 +291,7 @@ in vec2 pixel_size_interp;
 #include "stdlib_inc.glsl"
 
 #ifdef SINGLE_INSTANCE
-layout(std140) uniform DrawDataInstances { //ubo:3
-	DrawData draw_data;
-};
+uniform DrawData draw_data;
 
 #define read_draw_data_world_x draw_data.world_x
 #define read_draw_data_world_y draw_data.world_y
@@ -289,11 +305,6 @@ layout(std140) uniform DrawDataInstances { //ubo:3
 #define read_draw_data_lights draw_data.lights
 
 #else
-
-//layout(std140) uniform DrawDataInstances { //ubo:3
-//	DrawData draw_data[MAX_DRAW_DATA_INSTANCES];
-//};
-//#define read_draw_data draw_data[draw_data_instance]
 
 // Can all be flat as they are the same for the whole batched instance
 flat in vec4 varying_A;
