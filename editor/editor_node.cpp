@@ -7029,6 +7029,7 @@ EditorNode::EditorNode() {
 	scene_tabs_context_menu = memnew(PopupMenu);
 	tabbar_container->add_child(scene_tabs_context_menu);
 	scene_tabs_context_menu->connect("id_pressed", callable_mp(this, &EditorNode::_menu_option));
+	RS::get_singleton()->viewport_set_disable_environment(scene_tabs_context_menu->get_viewport_rid(), true);
 
 	scene_tab_add = memnew(Button);
 	scene_tab_add->set_flat(true);
@@ -7095,6 +7096,7 @@ EditorNode::EditorNode() {
 
 	file_menu = memnew(PopupMenu);
 	file_menu->set_name(TTR("Scene"));
+	RS::get_singleton()->viewport_set_disable_environment(file_menu->get_viewport_rid(), true);
 	main_menu->add_child(file_menu);
 	main_menu->set_menu_tooltip(0, TTR("Operations with scene files."));
 
@@ -7191,6 +7193,7 @@ EditorNode::EditorNode() {
 	file_menu->add_separator();
 	export_as_menu = memnew(PopupMenu);
 	export_as_menu->set_name("Export");
+	RS::get_singleton()->viewport_set_disable_environment(export_as_menu->get_viewport_rid(), true);
 	file_menu->add_child(export_as_menu);
 	file_menu->add_submenu_item(TTR("Export As..."), "Export");
 	export_as_menu->add_shortcut(ED_SHORTCUT("editor/export_as_mesh_library", TTR("MeshLibrary...")), FILE_EXPORT_MESH_LIBRARY);
@@ -7206,6 +7209,7 @@ EditorNode::EditorNode() {
 
 	recent_scenes = memnew(PopupMenu);
 	recent_scenes->set_name("RecentScenes");
+	RS::get_singleton()->viewport_set_disable_environment(recent_scenes->get_viewport_rid(), true);
 	file_menu->add_child(recent_scenes);
 	recent_scenes->connect("id_pressed", callable_mp(this, &EditorNode::_open_recent_scene));
 
@@ -7217,6 +7221,7 @@ EditorNode::EditorNode() {
 
 	project_menu = memnew(PopupMenu);
 	project_menu->set_name(TTR("Project"));
+	RS::get_singleton()->viewport_set_disable_environment(project_menu->get_viewport_rid(), true);
 	main_menu->add_child(project_menu);
 
 	project_menu->add_shortcut(ED_SHORTCUT_AND_COMMAND("editor/project_settings", TTR("Project Settings..."), Key::NONE, TTR("Project Settings")), RUN_SETTINGS);
@@ -7249,6 +7254,8 @@ EditorNode::EditorNode() {
 	tool_menu = memnew(PopupMenu);
 	tool_menu->set_name("Tools");
 	tool_menu->connect("index_pressed", callable_mp(this, &EditorNode::_tool_menu_option));
+	RS::get_singleton()->viewport_set_disable_environment(tool_menu->get_viewport_rid(), true);
+
 	project_menu->add_child(tool_menu);
 	project_menu->add_submenu_item(TTR("Tools"), "Tools");
 	tool_menu->add_item(TTR("Orphan Resource Explorer..."), TOOLS_ORPHAN_RESOURCES);
@@ -7283,10 +7290,14 @@ EditorNode::EditorNode() {
 	// Options are added and handled by DebuggerEditorPlugin.
 	debug_menu = memnew(PopupMenu);
 	debug_menu->set_name(TTR("Debug"));
+	RS::get_singleton()->viewport_set_disable_environment(debug_menu->get_viewport_rid(), true);
+
 	main_menu->add_child(debug_menu);
 
 	settings_menu = memnew(PopupMenu);
 	settings_menu->set_name(TTR("Editor"));
+	RS::get_singleton()->viewport_set_disable_environment(settings_menu->get_viewport_rid(), true);
+
 	main_menu->add_child(settings_menu);
 
 	ED_SHORTCUT_AND_COMMAND("editor/editor_settings", TTR("Editor Settings..."));
@@ -7297,6 +7308,8 @@ EditorNode::EditorNode() {
 
 	editor_layouts = memnew(PopupMenu);
 	editor_layouts->set_name("Layouts");
+	RS::get_singleton()->viewport_set_disable_environment(editor_layouts->get_viewport_rid(), true);
+
 	settings_menu->add_child(editor_layouts);
 	editor_layouts->connect("id_pressed", callable_mp(this, &EditorNode::_layout_menu_option));
 	settings_menu->add_submenu_item(TTR("Editor Layout"), "Layouts");
@@ -7337,6 +7350,8 @@ EditorNode::EditorNode() {
 
 	help_menu = memnew(PopupMenu);
 	help_menu->set_name(TTR("Help"));
+	RS::get_singleton()->viewport_set_disable_environment(help_menu->get_viewport_rid(), true);
+
 	main_menu->add_child(help_menu);
 
 	help_menu->connect("id_pressed", callable_mp(this, &EditorNode::_menu_option));
@@ -7532,6 +7547,7 @@ EditorNode::EditorNode() {
 	update_spinner->set_icon(gui_base->get_theme_icon(SNAME("Progress1"), SNAME("EditorIcons")));
 	update_spinner->get_popup()->connect("id_pressed", callable_mp(this, &EditorNode::_menu_option));
 	PopupMenu *p = update_spinner->get_popup();
+	RS::get_singleton()->viewport_set_disable_environment(p->get_viewport_rid(), true);
 	p->add_radio_check_item(TTR("Update Continuously"), SETTINGS_UPDATE_CONTINUOUSLY);
 	p->add_radio_check_item(TTR("Update When Changed"), SETTINGS_UPDATE_WHEN_CHANGED);
 	p->add_separator();
