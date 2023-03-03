@@ -8798,11 +8798,19 @@ Error ShaderLanguage::_parse_shader(const HashMap<StringName, FunctionInfo> &p_f
 										_set_error(RTR("'hint_normal_roughness_texture' is not supported in gl_compatibility shaders."));
 										return ERR_PARSE_ERROR;
 									}
+									if (String(shader_type_identifier) != "spatial") {
+										_set_error(RTR("'hint_normal_roughness_texture' can only be used from within 'spatial' shaders"));
+										return ERR_PARSE_ERROR;
+									}
 								} break;
 								case TK_HINT_DEPTH_TEXTURE: {
 									new_hint = ShaderNode::Uniform::HINT_DEPTH_TEXTURE;
 									--texture_uniforms;
 									--texture_binding;
+									if (String(shader_type_identifier) != "spatial") {
+										_set_error(RTR("'hint_depth_texture' can only be used from within 'spatial' shaders"));
+										return ERR_PARSE_ERROR;
+									}
 								} break;
 								case TK_FILTER_NEAREST: {
 									new_filter = FILTER_NEAREST;
