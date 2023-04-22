@@ -304,7 +304,7 @@ float sample_pcf_shadow(texture2D shadow, vec2 shadow_pixel_size, vec3 coord) {
 float sample_omni_pcf_shadow(texture2D shadow, float blur_scale, vec2 coord, vec4 uv_rect, vec2 flip_offset, float depth) {
 	//if only one sample is taken, take it from the center
 	if (sc_soft_shadow_samples == 0) {
-		vec2 pos = coord * 0.5 + 0.5;
+		vec2 pos = coord;
 		pos = uv_rect.xy + pos * uv_rect.zw;
 		return textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(pos, depth, 1.0));
 	}
@@ -324,20 +324,7 @@ float sample_omni_pcf_shadow(texture2D shadow, float blur_scale, vec2 coord, vec
 		vec2 offset = offset_scale * (disk_rotation * scene_data_block.data.soft_shadow_kernel[i].xy);
 		vec2 sample_coord = coord + offset;
 
-		float sample_coord_length_sqaured = dot(sample_coord, sample_coord);
-		bool do_flip = sample_coord_length_sqaured > 1.0;
-
-		if (do_flip) {
-			float len = sqrt(sample_coord_length_sqaured);
-			sample_coord = sample_coord * (2.0 / len - 1.0);
-		}
-
-		sample_coord = sample_coord * 0.5 + 0.5;
 		sample_coord = uv_rect.xy + sample_coord * uv_rect.zw;
-
-		if (do_flip) {
-			sample_coord += flip_offset;
-		}
 		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(sample_coord, depth, 1.0));
 	}
 
@@ -387,6 +374,15 @@ float sample_directional_soft_shadow(texture2D shadow, vec3 pssm_coord, vec2 tex
 }
 
 #endif // SHADOWS_DISABLED
+
+vec2 signNotZero(vec2 v) {
+	return mix(vec2(-1.0), vec2(1.0), greaterThanEqual(v.xy, vec2(0.0)));
+}
+vec2 vec3_to_oct(vec3 e) {
+	e /= abs(e.x) + abs(e.y) + abs(e.z);
+	vec2 oct = e.z >= 0.0f ? e.xy : (vec2(1.0f) - abs(e.yx)) * signNotZero(e.xy);
+	return oct * 0.5f + 0.5f;
+}
 
 float get_omni_attenuation(float distance, float inv_range, float decay) {
 	float nd = distance * inv_range;
@@ -453,14 +449,7 @@ float light_process_omni_shadow(uint idx, vec3 vertex, vec3 normal) {
 
 				vec4 uv_rect = base_uv_rect;
 
-				if (pos.z >= 0.0) {
-					uv_rect.xy += flip_offset;
-				}
-
-				pos.z = 1.0 + abs(pos.z);
-				pos.xy /= pos.z;
-
-				pos.xy = pos.xy * 0.5 + 0.5;
+				pos.xy = vec3_to_oct(pos);
 				pos.xy = uv_rect.xy + pos.xy * uv_rect.zw;
 
 				float d = textureLod(sampler2D(shadow_atlas, material_samplers[SAMPLER_LINEAR_CLAMP]), pos.xy, 0.0).r;
@@ -489,14 +478,7 @@ float light_process_omni_shadow(uint idx, vec3 vertex, vec3 normal) {
 
 					vec4 uv_rect = base_uv_rect;
 
-					if (pos.z >= 0.0) {
-						uv_rect.xy += flip_offset;
-					}
-
-					pos.z = 1.0 + abs(pos.z);
-					pos.xy /= pos.z;
-
-					pos.xy = pos.xy * 0.5 + 0.5;
+					pos.xy = vec3_to_oct(pos);
 					pos.xy = uv_rect.xy + pos.xy * uv_rect.zw;
 					shadow += textureProj(sampler2DShadow(shadow_atlas, shadow_sampler), vec4(pos.xy, z_norm, 1.0));
 				}
@@ -512,13 +494,8 @@ float light_process_omni_shadow(uint idx, vec3 vertex, vec3 normal) {
 			vec4 uv_rect = base_uv_rect;
 
 			vec3 shadow_sample = normalize(shadow_dir + normal_bias);
-			if (shadow_sample.z >= 0.0) {
-				uv_rect.xy += flip_offset;
-				flip_offset *= -1.0;
-			}
 
-			shadow_sample.z = 1.0 + abs(shadow_sample.z);
-			vec2 pos = shadow_sample.xy / shadow_sample.z;
+			vec2 pos = vec3_to_oct(shadow_sample);
 			float depth = shadow_len - omni_lights.data[idx].shadow_bias;
 			depth *= omni_lights.data[idx].inv_radius;
 			shadow = mix(1.0, sample_omni_pcf_shadow(shadow_atlas, omni_lights.data[idx].soft_shadow_scale / shadow_sample.z, pos, uv_rect, flip_offset, depth), omni_lights.data[idx].shadow_opacity);

@@ -2268,16 +2268,16 @@ bool LightStorage::shadow_atlas_update_light(RID p_atlas, RID p_light_instance, 
 		old_subdivision = shadow_atlas->quadrants[old_quadrant].subdivision;
 	}
 
-	bool is_omni = li->light_type == RS::LIGHT_OMNI;
+	//bool is_omni = li->light_type == RS::LIGHT_OMNI;
 	bool found_shadow = false;
 	int new_quadrant = -1;
 	int new_shadow = -1;
 
-	if (is_omni) {
-		found_shadow = _shadow_atlas_find_omni_shadows(shadow_atlas, valid_quadrants, valid_quadrant_count, old_subdivision, tick, new_quadrant, new_shadow);
-	} else {
-		found_shadow = _shadow_atlas_find_shadow(shadow_atlas, valid_quadrants, valid_quadrant_count, old_subdivision, tick, new_quadrant, new_shadow);
-	}
+	//if (is_omni) {
+	//found_shadow = _shadow_atlas_find_omni_shadows(shadow_atlas, valid_quadrants, valid_quadrant_count, old_subdivision, tick, new_quadrant, new_shadow);
+	//} else {
+	found_shadow = _shadow_atlas_find_shadow(shadow_atlas, valid_quadrants, valid_quadrant_count, old_subdivision, tick, new_quadrant, new_shadow);
+	//}
 
 	if (found_shadow) {
 		if (old_quadrant != SHADOW_INVALID) {
@@ -2300,17 +2300,17 @@ bool LightStorage::shadow_atlas_update_light(RID p_atlas, RID p_light_instance, 
 		sh->alloc_tick = tick;
 		sh->version = p_light_version;
 
-		if (is_omni) {
-			new_key |= OMNI_LIGHT_FLAG;
+		//if (is_omni) {
+		//	new_key |= OMNI_LIGHT_FLAG;
 
-			int new_omni_shadow = new_shadow + 1;
-			ShadowAtlas::Quadrant::Shadow *extra_sh = &shadow_atlas->quadrants[new_quadrant].shadows.write[new_omni_shadow];
-			_shadow_atlas_invalidate_shadow(extra_sh, p_atlas, shadow_atlas, new_quadrant, new_omni_shadow);
+		//	int new_omni_shadow = new_shadow + 1;
+		//	ShadowAtlas::Quadrant::Shadow *extra_sh = &shadow_atlas->quadrants[new_quadrant].shadows.write[new_omni_shadow];
+		//	_shadow_atlas_invalidate_shadow(extra_sh, p_atlas, shadow_atlas, new_quadrant, new_omni_shadow);
 
-			extra_sh->owner = p_light_instance;
-			extra_sh->alloc_tick = tick;
-			extra_sh->version = p_light_version;
-		}
+		//	extra_sh->owner = p_light_instance;
+		//	extra_sh->alloc_tick = tick;
+		//	extra_sh->version = p_light_version;
+		//}
 
 		li->shadow_atlases.insert(p_atlas);
 
@@ -2326,15 +2326,15 @@ bool LightStorage::shadow_atlas_update_light(RID p_atlas, RID p_light_instance, 
 void LightStorage::_shadow_atlas_invalidate_shadow(ShadowAtlas::Quadrant::Shadow *p_shadow, RID p_atlas, ShadowAtlas *p_shadow_atlas, uint32_t p_quadrant, uint32_t p_shadow_idx) {
 	if (p_shadow->owner.is_valid()) {
 		LightInstance *sli = light_instance_owner.get_or_null(p_shadow->owner);
-		uint32_t old_key = p_shadow_atlas->shadow_owners[p_shadow->owner];
+		//uint32_t old_key = p_shadow_atlas->shadow_owners[p_shadow->owner];
 
-		if (old_key & OMNI_LIGHT_FLAG) {
-			uint32_t s = old_key & SHADOW_INDEX_MASK;
-			uint32_t omni_shadow_idx = p_shadow_idx + (s == (uint32_t)p_shadow_idx ? 1 : -1);
-			ShadowAtlas::Quadrant::Shadow *omni_shadow = &p_shadow_atlas->quadrants[p_quadrant].shadows.write[omni_shadow_idx];
-			omni_shadow->version = 0;
-			omni_shadow->owner = RID();
-		}
+		//if (old_key & OMNI_LIGHT_FLAG) {
+		//	uint32_t s = old_key & SHADOW_INDEX_MASK;
+		//	uint32_t omni_shadow_idx = p_shadow_idx + (s == (uint32_t)p_shadow_idx ? 1 : -1);
+		//	ShadowAtlas::Quadrant::Shadow *omni_shadow = &p_shadow_atlas->quadrants[p_quadrant].shadows.write[omni_shadow_idx];
+		//	omni_shadow->version = 0;
+		//	omni_shadow->owner = RID();
+		//}
 
 		p_shadow_atlas->shadow_owners.erase(p_shadow->owner);
 		p_shadow->version = 0;

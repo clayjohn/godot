@@ -39,20 +39,27 @@ layout(push_constant, std430) uniform Params {
 }
 params;
 
+vec2 signNotZero(vec2 v) {
+	return mix(vec2(-1.0), vec2(1.0), greaterThanEqual(v.xy, vec2(0.0)));
+}
+
+vec3 oct_to_vec3(vec2 oct) {
+	oct = oct * 2.0 - 1.0;
+	vec3 v = vec3(oct.xy, 1.0 - abs(oct.x) - abs(oct.y));
+	if (v.z < 0.0) {
+		v.xy = (1.0 - abs(v.yx)) * signNotZero(v.xy);
+	}
+	return normalize(v);
+}
+
 void main() {
 	vec2 uv = uv_interp;
 	vec2 texel_size = abs(params.texel_size);
 
 	uv = clamp(uv * (1.0 + 2.0 * texel_size) - texel_size, vec2(0.0), vec2(1.0));
 
-	vec3 normal = vec3(uv * 2.0 - 1.0, 0.0);
-	normal.z = 0.5 * (1.0 - dot(normal.xy, normal.xy)); // z = 1/2 - 1/2 * (x^2 + y^2)
-	normal = normalize(normal);
-
-	normal.y = -normal.y; //needs to be flipped to match projection matrix
-	if (params.texel_size.x >= 0.0) { // Sign is used to encode Z flip
-		normal.z = -normal.z;
-	}
+	vec3 normal = oct_to_vec3(uv);
+	normal.y *= -1.0;
 
 	float depth = texture(source_cube, normal).r;
 
