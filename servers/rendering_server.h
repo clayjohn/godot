@@ -524,8 +524,15 @@ public:
 		SHADOW_QUALITY_MAX
 	};
 
+	enum ShadowJitter {
+		SHADOW_JITTER_AUTO,
+		SHADOW_JITTER_NEVER,
+		SHADOW_JITTER_ALWAYS,
+	};
+
 	virtual void positional_soft_shadow_filter_set_quality(ShadowQuality p_quality) = 0;
 	virtual void directional_soft_shadow_filter_set_quality(ShadowQuality p_quality) = 0;
+	virtual void shadow_filter_set_use_jitter(ShadowJitter p_quality) = 0;
 
 	enum LightProjectorFilter {
 		LIGHT_PROJECTOR_FILTER_NEAREST,
@@ -1708,6 +1715,7 @@ VARIANT_ENUM_CAST(RenderingServer::SubSurfaceScatteringQuality);
 VARIANT_ENUM_CAST(RenderingServer::DOFBlurQuality);
 VARIANT_ENUM_CAST(RenderingServer::DOFBokehShape);
 VARIANT_ENUM_CAST(RenderingServer::ShadowQuality);
+VARIANT_ENUM_CAST(RenderingServer::ShadowJitter);
 VARIANT_ENUM_CAST(RenderingServer::InstanceType);
 VARIANT_ENUM_CAST(RenderingServer::InstanceFlags);
 VARIANT_ENUM_CAST(RenderingServer::ShadowCastingSetting);

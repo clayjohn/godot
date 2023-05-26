@@ -145,7 +145,7 @@ private:
 		uint32_t pancake_shadows;
 		uint32_t camera_visible_layers;
 		float pass_alpha_multiplier;
-		uint32_t pad3;
+		float jitter_fraction; // Used to improve temporal effect quality (value is always between 0.0 and 1.0).
 	};
 
 	struct UBODATA {

@@ -2383,6 +2383,7 @@ void RenderingServer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("positional_soft_shadow_filter_set_quality", "quality"), &RenderingServer::positional_soft_shadow_filter_set_quality);
 	ClassDB::bind_method(D_METHOD("directional_soft_shadow_filter_set_quality", "quality"), &RenderingServer::directional_soft_shadow_filter_set_quality);
+	ClassDB::bind_method(D_METHOD("shadow_filter_set_use_jitter", "jitter"), &RenderingServer::shadow_filter_set_use_jitter);
 	ClassDB::bind_method(D_METHOD("directional_shadow_atlas_set_size", "size", "is_16bits"), &RenderingServer::directional_shadow_atlas_set_size);
 
 	BIND_ENUM_CONSTANT(SHADOW_QUALITY_HARD);
@@ -2392,6 +2393,10 @@ void RenderingServer::_bind_methods() {
 	BIND_ENUM_CONSTANT(SHADOW_QUALITY_SOFT_HIGH);
 	BIND_ENUM_CONSTANT(SHADOW_QUALITY_SOFT_ULTRA);
 	BIND_ENUM_CONSTANT(SHADOW_QUALITY_MAX);
+
+	BIND_ENUM_CONSTANT(SHADOW_JITTER_AUTO);
+	BIND_ENUM_CONSTANT(SHADOW_JITTER_NEVER);
+	BIND_ENUM_CONSTANT(SHADOW_JITTER_ALWAYS);
 
 	/* REFLECTION PROBE */
 
@@ -3332,6 +3337,8 @@ void RenderingServer::init() {
 
 	GLOBAL_DEF(PropertyInfo(Variant::INT, "rendering/lights_and_shadows/positional_shadow/soft_shadow_filter_quality", PROPERTY_HINT_ENUM, "Hard (Fastest),Soft Very Low (Faster),Soft Low (Fast),Soft Medium (Average),Soft High (Slow),Soft Ultra (Slowest)"), 2);
 	GLOBAL_DEF("rendering/lights_and_shadows/positional_shadow/soft_shadow_filter_quality.mobile", 0);
+
+	GLOBAL_DEF(PropertyInfo(Variant::INT, "rendering/lights_and_shadows/shadow_filter_use_jitter", PROPERTY_HINT_ENUM, "Auto (Jitter when TAA Enabled),Never,Always"), 0);
 
 	GLOBAL_DEF("rendering/2d/shadow_atlas/size", 2048);
 

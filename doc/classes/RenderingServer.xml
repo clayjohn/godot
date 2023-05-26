@@ -3093,6 +3093,13 @@
 				Sets the path hint for the specified shader. This should generally match the [Shader] resource's [member Resource.resource_path].
 			</description>
 		</method>
+		<method name="shadow_filter_set_use_jitter">
+			<return type="void" />
+			<param index="0" name="jitter" type="int" enum="RenderingServer.ShadowJitter" />
+			<description>
+				Sets the shadow dithering pattern randomization mode for every frame rendered. See [member ProjectSettings.rendering/lights_and_shadows/shadow_filter_use_jitter] for more information.
+			</description>
+		</method>
 		<method name="skeleton_allocate_data">
 			<return type="void" />
 			<param index="0" name="skeleton" type="RID" />
@@ -4422,6 +4429,15 @@
 		</constant>
 		<constant name="SHADOW_QUALITY_MAX" value="6" enum="ShadowQuality">
 			Represents the size of the [enum ShadowQuality] enum.
+		</constant>
+		<constant name="SHADOW_JITTER_AUTO" value="0" enum="ShadowJitter">
+			Jitter the shadow filtering dithering pattern if temporal antialiasing (TAA) is enabled.
+		</constant>
+		<constant name="SHADOW_JITTER_NEVER" value="1" enum="ShadowJitter">
+			Never jitter the shadow filtering dithering pattern, even if temporal antialiasing (TAA) is enabled.
+		</constant>
+		<constant name="SHADOW_JITTER_ALWAYS" value="2" enum="ShadowJitter">
+			Always jitter the shadow filtering dithering pattern, even if temporal antialiasing (TAA) is disabled.
 		</constant>
 		<constant name="REFLECTION_PROBE_UPDATE_ONCE" value="0" enum="ReflectionProbeUpdateMode">
 			Reflection probe will update reflections once and then stop.

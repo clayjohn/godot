@@ -84,6 +84,14 @@ void RenderSceneDataRD::update_ubo(RID p_uniform_buffer, RS::ViewportDebugDraw p
 
 	ubo.pancake_shadows = p_pancake_shadows;
 
+	if (render_scene_render->shadow_filter_get_use_jitter() == RS::SHADOW_JITTER_ALWAYS || (render_scene_render->shadow_filter_get_use_jitter() == RS::SHADOW_JITTER_AUTO && !taa_jitter.is_zero_approx())) {
+		// Used for temporal jittering. Rollover at 16 frames to follow TAA jitter and avoid losing precision over time.
+		ubo.jitter_fraction = (RSG::rasterizer->get_frame_number() % 16) * 0.0625;
+	} else {
+		// Reset jittering and keep it constant.
+		ubo.jitter_fraction = 0.0;
+	}
+
 	RendererRD::MaterialStorage::store_soft_shadow_kernel(render_scene_render->directional_penumbra_shadow_kernel_get(), ubo.directional_penumbra_shadow_kernel);
 	RendererRD::MaterialStorage::store_soft_shadow_kernel(render_scene_render->directional_soft_shadow_kernel_get(), ubo.directional_soft_shadow_kernel);
 	RendererRD::MaterialStorage::store_soft_shadow_kernel(render_scene_render->penumbra_shadow_kernel_get(), ubo.penumbra_shadow_kernel);

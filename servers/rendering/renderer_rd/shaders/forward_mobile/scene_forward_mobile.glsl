@@ -1648,7 +1648,7 @@ void main() {
 				break;
 			}
 
-			float shadow = light_process_omni_shadow(light_index, vertex, normal);
+			float shadow = light_process_omni_shadow(light_index, vertex, normal, scene_data.jitter_fraction);
 
 			shadow = blur_shadow(shadow);
 
@@ -1693,7 +1693,7 @@ void main() {
 				break;
 			}
 
-			float shadow = light_process_spot_shadow(light_index, vertex, normal);
+			float shadow = light_process_spot_shadow(light_index, vertex, normal, scene_data.jitter_fraction);
 
 			shadow = blur_shadow(shadow);
 
