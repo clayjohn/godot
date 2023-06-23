@@ -8886,9 +8886,11 @@ void RenderingDeviceVulkan::initialize(VulkanContext *p_context, bool p_local_de
 
 			VkResult err = vkAllocateCommandBuffers(device, &cmdbuf, &frames[i].setup_command_buffer);
 			ERR_CONTINUE_MSG(err, "vkAllocateCommandBuffers failed with error " + itos(err) + ".");
+			context->set_object_name(VK_OBJECT_TYPE_COMMAND_BUFFER, uint64_t(frames[i].setup_command_buffer), "Setup Command Buffer Frame[" +itos(i) + "]");
 
 			err = vkAllocateCommandBuffers(device, &cmdbuf, &frames[i].draw_command_buffer);
 			ERR_CONTINUE_MSG(err, "vkAllocateCommandBuffers failed with error " + itos(err) + ".");
+			context->set_object_name(VK_OBJECT_TYPE_COMMAND_BUFFER, uint64_t(frames[i].draw_command_buffer), "Draw Command Buffer Frame[" +itos(i) + "]");
 		}
 
 		{

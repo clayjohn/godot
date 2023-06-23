@@ -1549,10 +1549,13 @@ Error VulkanContext::_initialize_queues(VkSurfaceKHR p_surface) {
 
 	vkGetDeviceQueue(device, graphics_queue_family_index, 0, &graphics_queue);
 
+	set_object_name(VK_OBJECT_TYPE_QUEUE, uint64_t(graphics_queue), "Graphics Queue");
+
 	if (!separate_present_queue) {
 		present_queue = graphics_queue;
 	} else {
 		vkGetDeviceQueue(device, present_queue_family_index, 0, &present_queue);
+		set_object_name(VK_OBJECT_TYPE_QUEUE, uint64_t(present_queue), "Present Queue");
 	}
 
 	// Get the list of VkFormat's that are supported:
@@ -1769,7 +1772,7 @@ Error VulkanContext::_clean_up_swap_chain(Window *window) {
 	if (!window->swapchain) {
 		return OK;
 	}
-	vkDeviceWaitIdle(device);
+	//vkDeviceWaitIdle(device);
 
 	// This destroys images associated it seems.
 	fpDestroySwapchainKHR(device, window->swapchain, nullptr);
@@ -2127,6 +2130,7 @@ Error VulkanContext::_update_swap_chain(Window *window) {
 			err = vkAllocateCommandBuffers(device, &present_cmd_info,
 					&window->swapchain_image_resources[i].graphics_to_present_cmd);
 			ERR_FAIL_COND_V(err, ERR_CANT_CREATE);
+			set_object_name(VK_OBJECT_TYPE_COMMAND_BUFFER, uint64_t(window->swapchain_image_resources[i].graphics_to_present_cmd), "Graphics to Present Command Buffer[" + itos(i) + "]");
 
 			const VkCommandBufferBeginInfo cmd_buf_info = {
 				/*sType*/ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
