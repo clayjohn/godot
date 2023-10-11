@@ -170,7 +170,6 @@ private:
 	RS::ShadowQuality directional_shadow_quality = RS::SHADOW_QUALITY_MAX;
 	float shadows_quality_radius = 1.0;
 	float directional_shadow_quality_radius = 1.0;
-	RS::ShadowJitter shadow_filter_use_jitter = RS::SHADOW_JITTER_AUTO;
 
 	float *directional_penumbra_shadow_kernel = nullptr;
 	float *directional_soft_shadow_kernel = nullptr;
@@ -302,7 +301,6 @@ public:
 
 	virtual void positional_soft_shadow_filter_set_quality(RS::ShadowQuality p_quality) override;
 	virtual void directional_soft_shadow_filter_set_quality(RS::ShadowQuality p_quality) override;
-	virtual void shadow_filter_set_use_jitter(RS::ShadowJitter p_jitter) override;
 
 	virtual void decals_set_filter(RS::DecalFilter p_filter) override;
 	virtual void light_projectors_set_filter(RS::LightProjectorFilter p_filter) override;
@@ -318,9 +316,6 @@ public:
 	}
 	_FORCE_INLINE_ float directional_shadow_quality_radius_get() const {
 		return directional_shadow_quality_radius;
-	}
-	_FORCE_INLINE_ RS::ShadowJitter shadow_filter_get_use_jitter() const {
-		return shadow_filter_use_jitter;
 	}
 
 	_FORCE_INLINE_ float *directional_penumbra_shadow_kernel_get() {

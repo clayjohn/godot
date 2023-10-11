@@ -281,7 +281,6 @@ public:
 
 	virtual void positional_soft_shadow_filter_set_quality(RS::ShadowQuality p_quality) = 0;
 	virtual void directional_soft_shadow_filter_set_quality(RS::ShadowQuality p_quality) = 0;
-	virtual void shadow_filter_set_use_jitter(RS::ShadowJitter p_jitter) = 0;
 
 	/* Render Buffers */
 

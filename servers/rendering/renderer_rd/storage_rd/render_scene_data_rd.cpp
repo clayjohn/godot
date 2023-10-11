@@ -84,9 +84,9 @@ void RenderSceneDataRD::update_ubo(RID p_uniform_buffer, RS::ViewportDebugDraw p
 
 	ubo.pancake_shadows = p_pancake_shadows;
 
-	if (render_scene_render->shadow_filter_get_use_jitter() == RS::SHADOW_JITTER_ALWAYS || (render_scene_render->shadow_filter_get_use_jitter() == RS::SHADOW_JITTER_AUTO && !taa_jitter.is_zero_approx())) {
+	if (taa_frame_count > 0) {
 		// Used for temporal jittering. Rollover at 16 frames to follow TAA jitter and avoid losing precision over time.
-		ubo.jitter_fraction = (RSG::rasterizer->get_frame_number() % 16) * 0.0625;
+		ubo.jitter_fraction = (RSG::rasterizer->get_frame_number() % taa_frame_count) / float(taa_frame_count);
 	} else {
 		// Reset jittering and keep it constant.
 		ubo.jitter_fraction = 0.0;
