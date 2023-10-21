@@ -1210,13 +1210,8 @@ void MeshStorage::_mesh_surface_generate_version_for_input_mask(Mesh::Surface::V
 					} else {
 						vd.format = RD::DATA_FORMAT_R16G16B16A16_UNORM;
 						// A small trick here: if we are uncompressed and we have normals, but no tangents. We need
-						// the shader to think there are 4 components to "axis_tangent_attrib". So we give a size of 4,
-						// but a stride based on only having 2 elements.
-						if (!(s->format & RS::ARRAY_FORMAT_TANGENT)) {
-							normal_tangent_stride += sizeof(uint16_t) * 2;
-						} else {
-							normal_tangent_stride += sizeof(uint16_t) * 4;
-						}
+						// the shader to think there are 4 components to "axis_tangent_attrib".
+						normal_tangent_stride += sizeof(uint16_t) * 2;
 					}
 					if (mis) {
 						buffer = mis->vertex_buffer[p_current_buffer];
@@ -1225,9 +1220,18 @@ void MeshStorage::_mesh_surface_generate_version_for_input_mask(Mesh::Surface::V
 					}
 				} break;
 				case RS::ARRAY_TANGENT: {
-					buffer = mesh_default_rd_buffers[i];
-					vd.stride = 0;
-					vd.format = RD::DATA_FORMAT_R32G32B32A32_SFLOAT;
+					vd.offset = normal_tangent_stride;
+					offset = position_stride * s->vertex_count;
+					vd.format = RD::DATA_FORMAT_R16G16_UNORM;
+					if (!mis && (s->format & RS::ARRAY_FLAG_COMPRESS_ATTRIBUTES)) {
+					} else {
+						normal_tangent_stride += sizeof(uint16_t) * 2;
+					}
+					if (mis) {
+						buffer = mis->vertex_buffer[p_current_buffer];
+					} else {
+						buffer = s->vertex_buffer;
+					}
 				} break;
 				case RS::ARRAY_COLOR: {
 					vd.offset = attribute_stride;

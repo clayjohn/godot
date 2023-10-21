@@ -15,9 +15,14 @@ layout(location = 0) in vec4 vertex_angle_attrib;
 
 //only for pure render depth when normal is not used
 
-#if defined(NORMAL_USED) || defined(TANGENT_USED)
+#if defined(NORMAL_USED)
 // Contains Normal/Axis in RG, can contain tangent in BA.
 layout(location = 1) in vec4 axis_tangent_attrib;
+#endif
+
+#if defined(TANGENT_USED)
+// Contains Normal/Axis in RG, can contain tangent in BA.
+layout(location = 2) in vec2 tangent_attrib;
 #endif
 
 // Location 2 is unused.
@@ -502,6 +507,9 @@ void _unpack_vertex_attributes(vec4 p_vertex_in, vec3 p_compressed_aabb_position
 #ifdef NORMAL_USED
 		out vec3 r_normal,
 #endif
+#if defined(TANGENT_USED)
+		vec2 p_tangent_in,
+#endif
 		out vec3 r_tangent,
 		out vec3 r_binormal,
 #endif
@@ -521,6 +529,9 @@ void _unpack_vertex_attributes(vec4 p_vertex_in, vec3 p_compressed_aabb_position
 	if (p_normal_in.z > 0.0 || p_normal_in.w < 1.0) {
 		// Uncompressed format.
 		vec2 signed_tangent_attrib = p_normal_in.zw * 2.0 - 1.0;
+#if defined(TANGENT_USED)
+		signed_tangent_attrib = p_tangent_in * 2.0 - 1.0;
+#endif
 		r_tangent = oct_to_vec3(vec2(signed_tangent_attrib.x, abs(signed_tangent_attrib.y) * 2.0 - 1.0));
 		binormal_sign = sign(signed_tangent_attrib.y);
 		r_binormal = normalize(cross(r_normal, r_tangent) * binormal_sign);
@@ -569,6 +580,9 @@ void main() {
 #ifdef NORMAL_USED
 			prev_normal,
 #endif
+#if defined(TANGENT_USED)
+			tangent_attrib,
+#endif
 			prev_tangent,
 			prev_binormal,
 #endif
@@ -606,6 +620,9 @@ void main() {
 			axis_tangent_attrib,
 #ifdef NORMAL_USED
 			normal,
+#endif
+#if defined(TANGENT_USED)
+			tangent_attrib,
 #endif
 			tangent,
 			binormal,
