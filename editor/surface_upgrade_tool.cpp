@@ -75,7 +75,6 @@ void SurfaceUpgradeTool::upgrade_all_meshes() {
 }
 
 void SurfaceUpgradeTool::_show_popup() {
-	RS::get_singleton()->set_surface_upgrade_callback(nullptr);
 	bool accepted = EditorNode::immediate_confirmation_dialog(TTR("This project uses meshes with an outdated mesh format from previous Godot versions. The engine needs to update the format in order to use those meshes.\n\nPress 'Upgrade & Re-save' to have the engine scan the project folder and automatically update and re-save all meshes and scenes. This update may take a few minutes. Upgrading will make the meshes incompatible with previous versions of Godot.\n\nPress 'Upgrade Only' to continue opening the scene as normal. The engine will update each mesh in memory, but the update will not be saved. Choosing this option will lead to slower load times every time this project is loaded."), TTR("Upgrade & Re-save"), TTR("Upgrade Only"), 500);
 	if (accepted) {
 		RS::get_singleton()->set_warn_on_surface_upgrade(false);
