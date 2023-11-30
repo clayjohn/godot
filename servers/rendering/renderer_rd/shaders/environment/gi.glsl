@@ -146,6 +146,17 @@ vec2 octahedron_encode(vec3 n) {
 	return n.xy;
 }
 
+// https://johnwhite3d.blogspot.com/2017/10/signed-octahedron-normal-encoding.html
+vec3 oct3_to_vec3(vec3 e) {
+	vec3 n;
+	n.x = (e.x - e.y);
+	n.y = (e.x + e.y) - 1.0;
+	n.z = e.z * 2.0 - 1.0;
+	n.z = n.z * (1.0 - abs(n.x) - abs(n.y));
+
+	return normalize(n);
+}
+
 vec4 blend_color(vec4 src, vec4 dst) {
 	vec4 res;
 	float sa = 1.0 - src.a;
@@ -606,7 +617,8 @@ void voxel_gi_compute(uint index, vec3 position, vec3 normal, vec3 ref_vec, mat3
 
 vec4 fetch_normal_and_roughness(ivec2 pos) {
 	vec4 normal_roughness = texelFetch(sampler2D(normal_roughness_buffer, linear_sampler), pos, 0);
-	normal_roughness.xyz = normalize(normal_roughness.xyz * 2.0 - 1.0);
+	//normal_roughness.xyz = normalize(normal_roughness.xyz * 2.0 - 1.0);
+	normal_roughness = vec4(oct3_to_vec3(normal_roughness.xyw), normal_roughness.z);
 	return normal_roughness;
 }
 

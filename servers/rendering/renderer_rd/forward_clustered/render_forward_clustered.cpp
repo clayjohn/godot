@@ -68,7 +68,7 @@ void RenderForwardClustered::RenderBufferDataForwardClustered::ensure_normal_rou
 	ERR_FAIL_NULL(render_buffers);
 
 	if (!render_buffers->has_texture(RB_SCOPE_FORWARD_CLUSTERED, RB_TEX_ROUGHNESS)) {
-		RD::DataFormat format = RD::DATA_FORMAT_R8G8B8A8_UNORM;
+		RD::DataFormat format = RD::DATA_FORMAT_A2R10G10B10_UNORM_PACK32;
 		uint32_t usage_bits = RD::TEXTURE_USAGE_SAMPLING_BIT | RD::TEXTURE_USAGE_STORAGE_BIT;
 
 		if (render_buffers->get_msaa_3d() != RS::VIEWPORT_MSAA_DISABLED) {

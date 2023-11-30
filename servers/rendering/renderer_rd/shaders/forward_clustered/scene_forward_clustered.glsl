@@ -868,6 +868,19 @@ uint cluster_get_range_clip_mask(uint i, uint z_min, uint z_max) {
 
 #endif //!MODE_RENDER DEPTH
 
+// https://johnwhite3d.blogspot.com/2017/10/signed-octahedron-normal-encoding.html
+// Encode oct into xy + 1-bit.
+vec3 vec3_to_oct3(vec3 e) {
+	e /= abs(e.x) + abs(e.y) + abs(e.z);
+	vec3 n;
+	n.y = e.y * 0.5 + 0.5;
+	n.x = e.x * 0.5 + n.y;
+	n.y = e.x * -0.5 + n.y;
+
+	n.z = clamp(sign(e.z), 0.0, 1.0);
+	return n;
+}
+
 void fragment_shader(in SceneData scene_data) {
 	uint instance_index = instance_index_interp;
 
@@ -1515,7 +1528,7 @@ void fragment_shader(in SceneData scene_data) {
 
 		vec2 coord;
 
-		if (implementation_data.gi_upscale_for_msaa) {
+		if (false && implementation_data.gi_upscale_for_msaa) {
 			vec2 base_coord = screen_uv;
 			vec2 closest_coord = base_coord;
 #ifdef USE_MULTIVIEW
@@ -2302,8 +2315,8 @@ void fragment_shader(in SceneData scene_data) {
 	albedo_output_buffer.rgb = albedo;
 	albedo_output_buffer.a = alpha;
 
-	normal_output_buffer.rgb = normal * 0.5 + 0.5;
-	normal_output_buffer.a = 0.0;
+	normal_output_buffer.rgb = vec3_to_oct3(normal);
+	normal_output_buffer.a = normal_output_buffer.b;
 	depth_output_buffer.r = -vertex.z;
 
 	orm_output_buffer.r = ao;
@@ -2316,7 +2329,8 @@ void fragment_shader(in SceneData scene_data) {
 #endif
 
 #ifdef MODE_RENDER_NORMAL_ROUGHNESS
-	normal_roughness_output_buffer = vec4(normal * 0.5 + 0.5, roughness);
+	normal_roughness_output_buffer = vec4(vec3_to_oct3(normal), roughness);
+	normal_roughness_output_buffer = normal_roughness_output_buffer.xywz;
 
 #ifdef MODE_RENDER_VOXEL_GI
 	if (bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_VOXEL_GI)) { // process voxel_gi_instances

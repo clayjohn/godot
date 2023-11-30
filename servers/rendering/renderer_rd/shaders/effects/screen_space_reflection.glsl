@@ -44,6 +44,17 @@ vec2 view_to_screen(vec3 view_pos, out float w) {
 	return projected.xy;
 }
 
+// https://johnwhite3d.blogspot.com/2017/10/signed-octahedron-normal-encoding.html
+vec3 oct3_to_vec3(vec3 e) {
+	vec3 n;
+	n.x = (e.x - e.y);
+	n.y = (e.x + e.y) - 1.0;
+	n.z = e.z * 2.0 - 1.0;
+	n.z = n.z * (1.0 - abs(n.x) - abs(n.y));
+
+	return normalize(n);
+}
+
 #define M_PI 3.14159265359
 
 void main() {
@@ -65,8 +76,8 @@ void main() {
 	vec3 vertex = reconstructCSPosition(uv * vec2(params.screen_size), base_depth);
 
 	vec4 normal_roughness = imageLoad(source_normal_roughness, ssC);
-	vec3 normal = normal_roughness.xyz * 2.0 - 1.0;
-	float roughness = normal_roughness.w;
+	vec3 normal = oct_to_vec3(normal_roughness.xyw);
+	float roughness = normal_roughness.z;
 
 	// The roughness cutoff of 0.6 is chosen to match the roughness fadeout from GH-69828.
 	if (roughness > 0.6) {
