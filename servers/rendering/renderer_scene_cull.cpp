@@ -2287,6 +2287,8 @@ void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_in
 			real_t half_y = (y_max_cam - y_min_cam) * 0.5;
 
 			ortho_camera.set_orthogonal(-half_x, half_x, -half_y, half_y, 0, (z_max - z_min_cam));
+			Projection correction;
+			correction.set_depth_correction(false, true, false);
 
 			Vector2 uv_scale(1.0 / (x_max_cam - x_min_cam), 1.0 / (y_max_cam - y_min_cam));
 
@@ -2295,7 +2297,7 @@ void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_in
 			ortho_transform.origin = x_vec * (x_min_cam + half_x) + y_vec * (y_min_cam + half_y) + z_vec * z_max;
 
 			cull.shadows[p_shadow_index].cascades[i].frustum = Frustum(light_frustum_planes);
-			cull.shadows[p_shadow_index].cascades[i].projection = ortho_camera;
+			cull.shadows[p_shadow_index].cascades[i].projection = correction * ortho_camera;
 			cull.shadows[p_shadow_index].cascades[i].transform = ortho_transform;
 			cull.shadows[p_shadow_index].cascades[i].zfar = z_max - z_min_cam;
 			cull.shadows[p_shadow_index].cascades[i].split = distances[i + 1];
@@ -2384,7 +2386,10 @@ bool RendererSceneCull::_light_instance_update_shadow(Instance *p_instance, cons
 
 					RSG::mesh_storage->update_mesh_instances();
 
-					RSG::light_storage->light_instance_set_shadow_transform(light->instance, Projection(), light_transform, radius, 0, i, 0);
+					Projection correction;
+					correction.set_depth_correction(false, true, false);
+
+					RSG::light_storage->light_instance_set_shadow_transform(light->instance, correction, light_transform, radius, 0, i, 0);
 					shadow_data.light = light->instance;
 					shadow_data.pass = i;
 				}
@@ -2463,8 +2468,11 @@ bool RendererSceneCull::_light_instance_update_shadow(Instance *p_instance, cons
 						shadow_data.instances.push_back(static_cast<InstanceGeometryData *>(instance->base_data)->geometry_instance);
 					}
 
+					Projection correction;
+					correction.set_depth_correction(false, true, false);
+
 					RSG::mesh_storage->update_mesh_instances();
-					RSG::light_storage->light_instance_set_shadow_transform(light->instance, cm, xform, radius, 0, i, 0);
+					RSG::light_storage->light_instance_set_shadow_transform(light->instance, correction * cm, xform, radius, 0, i, 0);
 
 					shadow_data.light = light->instance;
 					shadow_data.pass = i;
@@ -2532,7 +2540,10 @@ bool RendererSceneCull::_light_instance_update_shadow(Instance *p_instance, cons
 
 			RSG::mesh_storage->update_mesh_instances();
 
-			RSG::light_storage->light_instance_set_shadow_transform(light->instance, cm, light_transform, radius, 0, 0, 0);
+			Projection correction;
+			correction.set_depth_correction(false, true, false);
+
+			RSG::light_storage->light_instance_set_shadow_transform(light->instance, correction * cm, light_transform, radius, 0, 0, 0);
 			shadow_data.light = light->instance;
 			shadow_data.pass = 0;
 
