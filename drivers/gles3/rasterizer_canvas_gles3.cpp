@@ -1626,13 +1626,13 @@ void RasterizerCanvasGLES3::light_update_shadow(RID p_rid, int p_shadow_index, c
 
 	glDepthMask(GL_TRUE);
 	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LESS);
+	glDepthFunc(GL_GREATER);
 	glDisable(GL_BLEND);
 
 	glEnable(GL_SCISSOR_TEST);
 	glScissor(0, p_shadow_index * 2, state.shadow_texture_size, 2);
 	glClearColor(p_far, p_far, p_far, 1.0);
-	RasterizerGLES3::clear_depth(1.0);
+	RasterizerGLES3::clear_depth(0.0);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -1748,13 +1748,13 @@ void RasterizerCanvasGLES3::light_update_directional_shadow(RID p_rid, int p_sha
 
 	glDepthMask(GL_TRUE);
 	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LESS);
+	glDepthFunc(GL_GREATER);
 	glDisable(GL_BLEND);
 
 	glEnable(GL_SCISSOR_TEST);
 	glScissor(0, p_shadow_index * 2, state.shadow_texture_size, 2);
 	glClearColor(1.0, 1.0, 1.0, 1.0);
-	RasterizerGLES3::clear_depth(1.0);
+	RasterizerGLES3::clear_depth(0.0);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 

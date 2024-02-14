@@ -28,7 +28,7 @@ void main() {
 	// We're doing clockwise culling so flip the order
 	uv_interp = vec2(vertex_attrib.x, vertex_attrib.y * -1.0);
 #endif
-	gl_Position = vec4(uv_interp, 1.0, 1.0);
+	gl_Position = vec4(uv_interp, -1.0, 1.0);
 }
 
 /* clang-format off */
