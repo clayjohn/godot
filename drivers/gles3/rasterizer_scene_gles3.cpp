@@ -820,12 +820,14 @@ void RasterizerSceneGLES3::_draw_sky(RID p_env, const Projection &p_projection, 
 		float aspect = p_projection.get_aspect();
 
 		camera.set_perspective(environment_get_sky_custom_fov(p_env), aspect, near_plane, far_plane);
-		Projection correction;
-		correction.set_depth_correction(false, true, false);
-		camera = correction * camera;
 	} else {
 		camera = p_projection;
 	}
+
+	Projection correction;
+	correction.set_depth_correction(false, true, false);
+	camera = correction * camera;
+
 	Basis sky_transform = environment_get_sky_orientation(p_env);
 	sky_transform.invert();
 	sky_transform = sky_transform * p_transform.basis;
@@ -1804,7 +1806,9 @@ void RasterizerSceneGLES3::_setup_lights(const RenderDataGLES3 *p_render_data, b
 					shadow_data.blend_splits = uint32_t((shadow_mode != RS::LIGHT_DIRECTIONAL_SHADOW_ORTHOGONAL) && light_storage->light_directional_get_blend_splits(base));
 					for (int j = 0; j < 4; j++) {
 						Rect2 atlas_rect = li->shadow_transform[j].atlas_rect;
-						Projection matrix = li->shadow_transform[j].camera;
+						Projection correction;
+						correction.set_depth_correction(false, true, false);
+						Projection matrix = correction * li->shadow_transform[j].camera;
 						float split = li->shadow_transform[MIN(limit, j)].split;
 
 						Projection bias;
@@ -2030,7 +2034,9 @@ void RasterizerSceneGLES3::_setup_lights(const RenderDataGLES3 *p_render_data, b
 				Projection bias;
 				bias.set_light_bias();
 
-				Projection cm = li->shadow_transform[0].camera;
+				Projection correction;
+				correction.set_depth_correction(false, true, false);
+				Projection cm = correction * li->shadow_transform[0].camera;
 				Projection shadow_mtx = bias * cm * modelview;
 				GLES3::MaterialStorage::store_camera(shadow_mtx, shadow_data.shadow_matrix);
 			}
@@ -2166,9 +2172,7 @@ void RasterizerSceneGLES3::_render_shadow_pass(RID p_light, RID p_shadow_atlas, 
 		}
 
 		use_pancake = light_storage->light_get_param(base, RS::LIGHT_PARAM_SHADOW_PANCAKE_SIZE) > 0;
-		Projection correction;
-		correction.set_depth_correction(false, true, false, true);
-		light_projection = correction * light_storage->light_instance_get_shadow_camera(p_light, p_pass);
+		light_projection = light_storage->light_instance_get_shadow_camera(p_light, p_pass);
 		light_transform = light_storage->light_instance_get_shadow_transform(p_light, p_pass);
 
 		float directional_shadow_size = light_storage->directional_shadow_get_size();
@@ -2222,9 +2226,7 @@ void RasterizerSceneGLES3::_render_shadow_pass(RID p_light, RID p_shadow_atlas, 
 
 				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, cube_map_faces[p_pass], shadow_texture, 0);
 
-				Projection correction;
-				correction.set_depth_correction(false, true, false, true);
-				light_projection = correction * light_storage->light_instance_get_shadow_camera(p_light, p_pass);
+				light_projection = light_storage->light_instance_get_shadow_camera(p_light, p_pass);
 				light_transform = light_storage->light_instance_get_shadow_transform(p_light, p_pass);
 				shadow_size = shadow_size / 2;
 			} else {
@@ -2234,9 +2236,7 @@ void RasterizerSceneGLES3::_render_shadow_pass(RID p_light, RID p_shadow_atlas, 
 			shadow_bias = light_storage->light_get_param(base, RS::LIGHT_PARAM_SHADOW_BIAS);
 
 		} else if (light_storage->light_get_type(base) == RS::LIGHT_SPOT) {
-			Projection correction;
-			correction.set_depth_correction(false, true, false, true);
-			light_projection = correction * light_storage->light_instance_get_shadow_camera(p_light, 0);
+			light_projection = light_storage->light_instance_get_shadow_camera(p_light, 0);
 			light_transform = light_storage->light_instance_get_shadow_transform(p_light, 0);
 
 			shadow_bias = light_storage->light_get_param(base, RS::LIGHT_PARAM_SHADOW_BIAS) / 10.0;

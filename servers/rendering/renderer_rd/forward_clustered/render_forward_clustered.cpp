@@ -2392,9 +2392,7 @@ void RenderForwardClustered::_render_shadow_pass(RID p_light, RID p_shadow_atlas
 		}
 
 		use_pancake = light_storage->light_get_param(base, RS::LIGHT_PARAM_SHADOW_PANCAKE_SIZE) > 0;
-		Projection correction;
-		correction.set_depth_correction(false, true, false, true);
-		light_projection = correction * light_storage->light_instance_get_shadow_camera(p_light, p_pass);
+		light_projection = light_storage->light_instance_get_shadow_camera(p_light, p_pass);
 		light_transform = light_storage->light_instance_get_shadow_transform(p_light, p_pass);
 
 		atlas_rect = light_storage->light_instance_get_directional_rect(p_light);
@@ -2470,9 +2468,7 @@ void RenderForwardClustered::_render_shadow_pass(RID p_light, RID p_shadow_atlas
 				render_texture = light_storage->get_cubemap(shadow_size / 2);
 				render_fb = light_storage->get_cubemap_fb(shadow_size / 2, p_pass);
 
-				Projection correction;
-				correction.set_depth_correction(false, true, false, true);
-				light_projection = correction * light_storage->light_instance_get_shadow_camera(p_light, p_pass);
+				light_projection = light_storage->light_instance_get_shadow_camera(p_light, p_pass);
 				light_transform = light_storage->light_instance_get_shadow_transform(p_light, p_pass);
 				render_cubemap = true;
 				finalize_cubemap = p_pass == 5;
@@ -2492,9 +2488,7 @@ void RenderForwardClustered::_render_shadow_pass(RID p_light, RID p_shadow_atlas
 
 				atlas_rect.position += p_pass * atlas_rect.size * dual_paraboloid_offset;
 
-				Projection correction;
-				correction.set_depth_correction(false, true, false, true);
-				light_projection = correction * light_storage->light_instance_get_shadow_camera(p_light, 0);
+				light_projection = light_storage->light_instance_get_shadow_camera(p_light, 0);
 				light_transform = light_storage->light_instance_get_shadow_transform(p_light, 0);
 
 				using_dual_paraboloid = true;
@@ -2504,9 +2498,7 @@ void RenderForwardClustered::_render_shadow_pass(RID p_light, RID p_shadow_atlas
 			}
 
 		} else if (light_storage->light_get_type(base) == RS::LIGHT_SPOT) {
-			Projection correction;
-			correction.set_depth_correction(false, true, false, true);
-			light_projection = correction * light_storage->light_instance_get_shadow_camera(p_light, 0);
+			light_projection = light_storage->light_instance_get_shadow_camera(p_light, 0);
 			light_transform = light_storage->light_instance_get_shadow_transform(p_light, 0);
 
 			render_fb = light_storage->shadow_atlas_get_fb(p_shadow_atlas);
