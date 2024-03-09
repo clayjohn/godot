@@ -719,10 +719,8 @@ Projection Projection::operator*(const Projection &p_matrix) const {
 	return new_matrix;
 }
 
-void Projection::set_depth_correction(bool p_flip_y, bool p_reverse_z, bool p_remap_z, bool p_restore) {
-	// When p_restore is true, a matrix that restores the corresponding operation will be created based on the parameters.
-	// When p_restore is true, if p_flip_y is true the y-value will flip again. If p_reverse_z is true the z-value is reversed again. If p_remap_z is true, the z-value will be transformed into "z * 2 - 1".
-
+void Projection::set_depth_correction(bool p_flip_y, bool p_reverse_z, bool p_remap_z) {
+	// p_remap_z is used to convert from OpenGL-style clip space (-1 - 1) to Vulkan style (0 - 1).
 	real_t *m = &columns[0][0];
 
 	m[0] = 1;
@@ -735,15 +733,11 @@ void Projection::set_depth_correction(bool p_flip_y, bool p_reverse_z, bool p_re
 	m[7] = 0.0;
 	m[8] = 0.0;
 	m[9] = 0.0;
-	m[10] = p_restore
-			? (p_remap_z ? (p_reverse_z ? -2.0 : 2.0) : (p_reverse_z ? -1.0 : 1.0))
-			: (p_remap_z ? (p_reverse_z ? -0.5 : 0.5) : (p_reverse_z ? -1.0 : 1.0));
+	m[10] = p_remap_z ? (p_reverse_z ? -0.5 : 0.5) : (p_reverse_z ? -1.0 : 1.0);
 	m[11] = 0.0;
 	m[12] = 0.0;
 	m[13] = 0.0;
-	m[14] = p_restore
-			? (p_remap_z ? (p_reverse_z ? 1.0 : -1.0) : 0.0)
-			: (p_remap_z ? 0.5 : 0.0);
+	m[14] = p_remap_z ? 0.5 : 0.0;
 	m[15] = 1.0;
 }
 
