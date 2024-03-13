@@ -1174,6 +1174,7 @@ void SkyRD::setup_sky(RID p_env, Ref<RenderSceneBuffersRD> p_render_buffers, con
 	}
 
 	Projection correction;
+	correction.set_depth_correction(false, true, false);
 	correction.add_jitter_offset(p_jitter);
 
 	sky_scene_state.view_count = p_view_count;
