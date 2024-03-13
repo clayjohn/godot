@@ -34,7 +34,7 @@ float get_depth_at_pos(vec2 uv) {
 	if (params.orthogonal) {
 		depth = ((depth + (params.z_far + params.z_near) / (params.z_far - params.z_near)) * (params.z_far - params.z_near)) / 2.0;
 	} else {
-		depth = 2.0 * params.z_near * params.z_far / (params.z_far + params.z_near - depth * (params.z_far - params.z_near));
+		depth = 2.0 * params.z_near * params.z_far / (params.z_far + params.z_near + depth * (params.z_far - params.z_near));
 	}
 	return depth;
 }
