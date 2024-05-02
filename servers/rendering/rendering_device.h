@@ -1259,6 +1259,9 @@ private:
 		// Swap chains prepared for drawing during the frame that must be presented.
 		LocalVector<RDD::SwapChainID> swap_chains_to_present;
 
+		// Extra command buffer pool used for driver workarounds.
+		RDG::CommandBufferPool command_buffer_pool;
+
 		struct Timestamp {
 			String description;
 			uint64_t value = 0;
