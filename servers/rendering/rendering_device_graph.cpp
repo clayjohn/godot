@@ -1254,7 +1254,8 @@ void RenderingDeviceGraph::_print_compute_list(const uint8_t *p_instruction_data
 	}
 }
 
-void RenderingDeviceGraph::_check_driver_workarounds() {
+void RenderingDeviceGraph::_check_driver_workarounds(RenderingContextDriver::Device p_device) {
+	const String rendering_device_name = p_device.name;
 	// Workaround for the Adreno 6XX family of devices.
 	//
 	// There's a known issue with the Vulkan driver in this family of devices where it'll crash if a dynamic state for drawing is
@@ -1270,11 +1271,10 @@ void RenderingDeviceGraph::_check_driver_workarounds() {
 	// all the individual submissions. This performance hit is accepted for the sake of being able to support these devices without
 	// limiting the design of the renderer.
 	//
-	// TODO: Implement the logic to check this. The driver is accessible here through RDD.
-	driver_workarounds.avoid_compute_after_draw = false;
+	driver_workarounds.avoid_compute_after_draw = (rendering_device_name.left(13) == "Adreno (TM) 6");
 }
 
-void RenderingDeviceGraph::initialize(RDD *p_driver, uint32_t p_frame_count, RDD::CommandQueueFamilyID p_secondary_command_queue_family, uint32_t p_secondary_command_buffers_per_frame) {
+void RenderingDeviceGraph::initialize(RDD *p_driver, RenderingContextDriver::Device p_device, uint32_t p_frame_count, RDD::CommandQueueFamilyID p_secondary_command_queue_family, uint32_t p_secondary_command_buffers_per_frame) {
 	driver = p_driver;
 	frames.resize(p_frame_count);
 
@@ -1291,7 +1291,7 @@ void RenderingDeviceGraph::initialize(RDD *p_driver, uint32_t p_frame_count, RDD
 
 	driver_honors_barriers = driver->api_trait_get(RDD::API_TRAIT_HONORS_PIPELINE_BARRIERS);
 
-	_check_driver_workarounds();
+	_check_driver_workarounds(p_device);
 }
 
 void RenderingDeviceGraph::finalize() {
