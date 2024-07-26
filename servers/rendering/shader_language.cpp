@@ -5574,15 +5574,6 @@ ShaderLanguage::Node *ShaderLanguage::_parse_expression(BlockNode *p_block, cons
 											ShaderNode::Uniform *u = &shader->uniforms[varname];
 											ERR_CONTINUE(u->type != call_function->arguments[i].type); //this should have been validated previously
 
-											if (RendererCompositor::get_singleton()->is_xr_enabled() && is_custom_func) {
-												ShaderNode::Uniform::Hint hint = u->hint;
-
-												if (hint == ShaderNode::Uniform::HINT_DEPTH_TEXTURE || hint == ShaderNode::Uniform::HINT_SCREEN_TEXTURE || hint == ShaderNode::Uniform::HINT_NORMAL_ROUGHNESS_TEXTURE) {
-													_set_error(vformat(RTR("Unable to pass a multiview texture sampler as a parameter to custom function. Consider to sample it in the main function and then pass the vector result to it."), get_uniform_hint_name(hint)));
-													return nullptr;
-												}
-											}
-
 											//propagate
 											if (!_propagate_function_call_sampler_uniform_settings(name, i, u->filter, u->repeat, u->hint)) {
 												return nullptr;
