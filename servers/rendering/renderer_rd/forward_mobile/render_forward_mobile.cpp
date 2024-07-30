@@ -229,6 +229,28 @@ RID RenderForwardMobile::RenderBufferDataForwardMobile::get_color_fbs(Framebuffe
 				pass.resolve_attachments.push_back(color_buffer_id);
 			}
 
+			pass.initial_actions.push_back(RD::INITIAL_ACTION_CLEAR); // color
+			pass.initial_actions.push_back(RD::INITIAL_ACTION_CLEAR); // depth
+			if (vrs_texture.is_valid()) {
+				pass.initial_actions.push_back(RD::INITIAL_ACTION_LOAD);
+			}
+			if (use_msaa) {
+				pass.initial_actions.push_back(RD::INITIAL_ACTION_DISCARD);
+			}
+			pass.initial_actions.push_back(RD::INITIAL_ACTION_DISCARD); // render target
+			ERR_FAIL_COND_V(pass.initial_actions.size() != textures.size() + 1, RID());
+
+			pass.final_actions.push_back(RD::FINAL_ACTION_DISCARD); // color
+			pass.final_actions.push_back(RD::FINAL_ACTION_DISCARD); // depth
+			if (vrs_texture.is_valid()) {
+				pass.final_actions.push_back(RD::FINAL_ACTION_DISCARD);
+			}
+			if (use_msaa) {
+				pass.final_actions.push_back(RD::FINAL_ACTION_DISCARD);
+			}
+			pass.final_actions.push_back(RD::FINAL_ACTION_STORE); // render target
+			ERR_FAIL_COND_V(pass.final_actions.size() != textures.size() + 1, RID());
+
 			passes.push_back(pass);
 
 			// - add blit to 2D pass

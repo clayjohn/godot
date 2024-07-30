@@ -1975,27 +1975,41 @@ RDD::RenderPassID RenderingDevice::_render_pass_create(const Vector<AttachmentFo
 			description.initial_layout = RDD::TEXTURE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			description.final_layout = RDD::TEXTURE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		} else {
-			if (p_attachments[i].usage_flags & TEXTURE_USAGE_COLOR_ATTACHMENT_BIT) {
-				description.load_op = initial_action_to_load_op(p_initial_action);
-				description.store_op = final_action_to_store_op(p_final_action);
-				description.stencil_load_op = RDD::ATTACHMENT_LOAD_OP_DONT_CARE;
-				description.stencil_store_op = RDD::ATTACHMENT_STORE_OP_DONT_CARE;
-				description.initial_layout = RDD::TEXTURE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-				description.final_layout = RDD::TEXTURE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			} else if (p_attachments[i].usage_flags & TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
-				description.load_op = initial_action_to_load_op(p_initial_depth_action);
-				description.store_op = final_action_to_store_op(p_final_depth_action);
-				description.stencil_load_op = initial_action_to_load_op(p_initial_depth_action);
-				description.stencil_store_op = final_action_to_store_op(p_final_depth_action);
-				description.initial_layout = RDD::TEXTURE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-				description.final_layout = RDD::TEXTURE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			if (p_passes[0].initial_actions.size() && p_passes[0].final_actions.size()) {
+				description.load_op = initial_action_to_load_op(p_passes[0].initial_actions[i]);
+				description.store_op = final_action_to_store_op(p_passes[0].final_actions[i]);
+				if (p_attachments[i].usage_flags & TEXTURE_USAGE_COLOR_ATTACHMENT_BIT) {
+					description.initial_layout = RDD::TEXTURE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+					description.final_layout = RDD::TEXTURE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+				} else if (p_attachments[i].usage_flags & TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+					description.stencil_load_op = initial_action_to_load_op(p_passes[0].initial_actions[i]);
+					description.stencil_store_op = final_action_to_store_op(p_passes[0].final_actions[i]);
+					description.initial_layout = RDD::TEXTURE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+					description.final_layout = RDD::TEXTURE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+				}
 			} else {
-				description.load_op = RDD::ATTACHMENT_LOAD_OP_DONT_CARE;
-				description.store_op = RDD::ATTACHMENT_STORE_OP_DONT_CARE;
-				description.stencil_load_op = RDD::ATTACHMENT_LOAD_OP_DONT_CARE;
-				description.stencil_store_op = RDD::ATTACHMENT_STORE_OP_DONT_CARE;
-				description.initial_layout = RDD::TEXTURE_LAYOUT_UNDEFINED;
-				description.final_layout = RDD::TEXTURE_LAYOUT_UNDEFINED;
+				if (p_attachments[i].usage_flags & TEXTURE_USAGE_COLOR_ATTACHMENT_BIT) {
+					description.load_op = initial_action_to_load_op(p_initial_action);
+					description.store_op = final_action_to_store_op(p_final_action);
+					description.stencil_load_op = RDD::ATTACHMENT_LOAD_OP_DONT_CARE;
+					description.stencil_store_op = RDD::ATTACHMENT_STORE_OP_DONT_CARE;
+					description.initial_layout = RDD::TEXTURE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+					description.final_layout = RDD::TEXTURE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+				} else if (p_attachments[i].usage_flags & TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+					description.load_op = initial_action_to_load_op(p_initial_depth_action);
+					description.store_op = final_action_to_store_op(p_final_depth_action);
+					description.stencil_load_op = initial_action_to_load_op(p_initial_depth_action);
+					description.stencil_store_op = final_action_to_store_op(p_final_depth_action);
+					description.initial_layout = RDD::TEXTURE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+					description.final_layout = RDD::TEXTURE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+				} else {
+					description.load_op = RDD::ATTACHMENT_LOAD_OP_DONT_CARE;
+					description.store_op = RDD::ATTACHMENT_STORE_OP_DONT_CARE;
+					description.stencil_load_op = RDD::ATTACHMENT_LOAD_OP_DONT_CARE;
+					description.stencil_store_op = RDD::ATTACHMENT_STORE_OP_DONT_CARE;
+					description.initial_layout = RDD::TEXTURE_LAYOUT_UNDEFINED;
+					description.final_layout = RDD::TEXTURE_LAYOUT_UNDEFINED;
+				}
 			}
 		}
 

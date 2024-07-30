@@ -386,6 +386,8 @@ public:
 		Vector<int32_t> preserve_attachments;
 		int32_t depth_attachment = ATTACHMENT_UNUSED;
 		int32_t vrs_attachment = ATTACHMENT_UNUSED; // density map for VRS, only used if supported
+		Vector<InitialAction> initial_actions;
+		Vector<FinalAction> final_actions;
 	};
 
 	typedef int64_t FramebufferFormatID;
