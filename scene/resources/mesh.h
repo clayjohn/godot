@@ -293,6 +293,70 @@ public:
 
 VARIANT_ENUM_CAST(MeshConvexDecompositionSettings::Mode);
 
+class SurfaceDataBase : public Resource {
+	GDCLASS(SurfaceDataBase, Resource);
+};
+
+class MeshSurfaceData : public Resource {
+	GDCLASS(MeshSurfaceData, Resource);
+
+	RS::SurfaceData surface_data;
+
+protected:
+	static void _bind_methods();
+
+public:
+	static Ref<MeshSurfaceData> create_from_arrays(Mesh::PrimitiveType p_primitive, const Array &p_arrays, const TypedArray<Array> &p_blend_shapes = TypedArray<Array>(), const Dictionary &p_lods = Dictionary(), BitField<Mesh::ArrayFormat> p_flags = 0);
+
+	void set_primitive_type(Mesh::PrimitiveType p_primitive_type);
+	Mesh::PrimitiveType get_primitive_type() const;
+
+	void set_format(BitField<Mesh::ArrayFormat> p_format);
+	BitField<Mesh::ArrayFormat> get_format() const;
+
+	void set_vertex_data(const PackedByteArray &p_vertex_data);
+	PackedByteArray get_vertex_data() const;
+
+	void set_attribute_data(const PackedByteArray &p_attribute_data);
+	PackedByteArray get_attribute_data() const;
+
+	void set_skin_data(const PackedByteArray &p_skin_data);
+	PackedByteArray get_skin_data() const;
+
+	void set_vertex_count(uint32_t p_vertex_count);
+	uint32_t get_vertex_count() const;
+
+	void set_index_data(const PackedByteArray &p_index_data);
+	PackedByteArray get_index_data() const;
+
+	void set_index_count(uint32_t p_index_count);
+	uint32_t get_index_count() const;
+
+	void set_aabb(const AABB &p_aabb);
+	AABB get_aabb() const;
+
+	void add_lod(float p_edge_length, const PackedByteArray &p_index_data);
+	float lod_get_edge_length(int p_lod) const;
+	PackedByteArray lod_get_index_data(int p_lod) const;
+
+	void add_bone_aabbs(const Array &p_aabbs);
+	Array get_bone_aabbs() const;
+
+	void set_mesh_to_skeleton_xform(const Transform3D &p_xform);
+	Transform3D get_mesh_to_skeleton_xform() const;
+
+	void set_blend_shape_data(const PackedByteArray &p_blend_shape_data);
+	PackedByteArray get_blend_shape_data() const;
+
+	void set_uv_scale(const Vector4 &p_uv_scale);
+	Vector4 get_uv_scale() const;
+
+	void set_material(RID p_material);
+	RID get_material() const;
+
+	RS::SurfaceData get_data() const;
+};
+
 class ArrayMesh : public Mesh {
 	GDCLASS(ArrayMesh, Mesh);
 	RES_BASE_EXTENSION("mesh");
@@ -340,10 +404,12 @@ protected:
 
 public:
 	void add_surface_from_arrays(PrimitiveType p_primitive, const Array &p_arrays, const TypedArray<Array> &p_blend_shapes = TypedArray<Array>(), const Dictionary &p_lods = Dictionary(), BitField<ArrayFormat> p_flags = 0);
+	void add_surface_from_data(const Ref<MeshSurfaceData> &p_surface_data);
 
 	void add_surface(BitField<ArrayFormat> p_format, PrimitiveType p_primitive, const Vector<uint8_t> &p_array, const Vector<uint8_t> &p_attribute_array, const Vector<uint8_t> &p_skin_array, int p_vertex_count, const Vector<uint8_t> &p_index_array, int p_index_count, const AABB &p_aabb, const Vector<uint8_t> &p_blend_shape_data = Vector<uint8_t>(), const Vector<AABB> &p_bone_aabbs = Vector<AABB>(), const Vector<RS::SurfaceData::LOD> &p_lods = Vector<RS::SurfaceData::LOD>(), const Vector4 p_uv_scale = Vector4());
 
 	Array surface_get_arrays(int p_surface) const override;
+	Ref<MeshSurfaceData> surface_get_data(int p_surface) const;
 	TypedArray<Array> surface_get_blend_shape_arrays(int p_surface) const override;
 	Dictionary surface_get_lods(int p_surface) const override;
 

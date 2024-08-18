@@ -334,10 +334,21 @@ public:
 		PRIMITIVE_MAX,
 	};
 
-	struct SurfaceData {
+	struct SurfaceDataBase {
 		PrimitiveType primitive = PRIMITIVE_MAX;
 
 		uint64_t format = ARRAY_FLAG_FORMAT_CURRENT_VERSION;
+
+		// Transforms used in runtime bone AABBs compute.
+		// Since bone AABBs is saved in Mesh space, but bones is in Skeleton space.
+		Transform3D mesh_to_skeleton_xform;
+
+		Vector4 uv_scale;
+
+		RID material;
+	};
+
+	struct SurfaceData : public SurfaceDataBase {
 		Vector<uint8_t> vertex_data; // Vertex, Normal, Tangent (change with skinning, blendshape).
 		Vector<uint8_t> attribute_data; // Color, UV, UV2, Custom0-3.
 		Vector<uint8_t> skin_data; // Bone index, Bone weight.
@@ -353,15 +364,27 @@ public:
 		Vector<LOD> lods;
 		Vector<AABB> bone_aabbs;
 
-		// Transforms used in runtime bone AABBs compute.
-		// Since bone AABBs is saved in Mesh space, but bones is in Skeleton space.
-		Transform3D mesh_to_skeleton_xform;
-
 		Vector<uint8_t> blend_shape_data;
+	};
 
-		Vector4 uv_scale;
+	struct SurfaceDataRD : public SurfaceDataBase {
+		RID vertex_buffer; // Vertex, Normal, Tangent (change with skinning, blendshape).
+		RID attribute_buffer; // Color, UV, UV2, Custom0-3.
+		RID skin_buffer; // Bone index, Bone weight.
+		RID vertex_count_buffer; // Single element SSBO with vertex count.
+		RID index_buffer;
+		RID index_count_buffer; // Single element SSBO with index count.
 
-		RID material;
+		RID AABB; // SSBO with six floats (position XYZ, size XYZ);
+
+		struct LOD {
+			float edge_length = 0.0f;
+			RID index_buffer;
+		};
+		Vector<LOD> lods;
+		Vector<AABB> bone_aabbs;
+
+		RID blend_shape_buffer;
 	};
 
 	virtual RID mesh_create_from_surfaces(const Vector<SurfaceData> &p_surfaces, int p_blend_shape_count = 0) = 0;
@@ -380,6 +403,7 @@ public:
 	virtual Error mesh_create_surface_data_from_arrays(SurfaceData *r_surface_data, PrimitiveType p_primitive, const Array &p_arrays, const Array &p_blend_shapes = Array(), const Dictionary &p_lods = Dictionary(), uint64_t p_compress_format = 0);
 	Array mesh_create_arrays_from_surface_data(const SurfaceData &p_data) const;
 	Array mesh_surface_get_arrays(RID p_mesh, int p_surface) const;
+	Error mesh_surface_get_data(RID p_mesh, int p_surface, SurfaceData *r_surface_data) const;
 	TypedArray<Array> mesh_surface_get_blend_shape_arrays(RID p_mesh, int p_surface) const;
 	Dictionary mesh_surface_get_lods(RID p_mesh, int p_surface) const;
 

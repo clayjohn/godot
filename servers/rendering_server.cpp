@@ -1705,6 +1705,11 @@ Array RenderingServer::mesh_surface_get_arrays(RID p_mesh, int p_surface) const 
 	return mesh_create_arrays_from_surface_data(sd);
 }
 
+Error RenderingServer::mesh_surface_get_data(RID p_mesh, int p_surface, SurfaceData *r_surface_data) const {
+	r_surface_data = mesh_get_surface(p_mesh, p_surface);
+	return OK;
+}
+
 Dictionary RenderingServer::mesh_surface_get_lods(RID p_mesh, int p_surface) const {
 	SurfaceData sd = mesh_get_surface(p_mesh, p_surface);
 	ERR_FAIL_COND_V(sd.vertex_count == 0, Dictionary());

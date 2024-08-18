@@ -950,6 +950,35 @@ Transform3D Mesh::get_builtin_bind_pose(int p_index) const {
 Mesh::Mesh() {
 }
 
+/////////////////
+/* MeshSurfaceData */
+
+Ref<MeshSurfaceData> MeshSurfaceData::create_from_arrays(Mesh::PrimitiveType p_primitive, const Array &p_arrays, const TypedArray<Array> &p_blend_shapes, const Dictionary &p_lods, BitField<Mesh::ArrayFormat> p_flags) {
+	ERR_FAIL_COND_V(p_arrays.size() != Mesh::ARRAY_MAX, Ref<MeshSurfaceData>());
+
+	Ref<MeshSurfaceData> mesh_surface_data;
+	mesh_surface_data.instantiate();
+	Error err = RS::get_singleton()->mesh_create_surface_data_from_arrays(&mesh_surface_data->surface_data, (RenderingServer::PrimitiveType)p_primitive, p_arrays, p_blend_shapes, p_lods, p_flags);
+	ERR_FAIL_COND_V(err != OK, Ref<MeshSurfaceData>());
+	return mesh_surface_data;
+}
+
+RS::SurfaceData MeshSurfaceData::get_data() const {
+	return surface_data;
+}
+
+void MeshSurfaceData::_bind_methods() {
+	ClassDB::bind_static_method("MeshSurfaceData", D_METHOD("create_from_arrays", "primitive", "arrays", "blend_shapes", "lods", "flags"), &MeshSurfaceData::create_from_arrays, DEFVAL(Array()), DEFVAL(Dictionary()), DEFVAL(0));
+	//ClassDB::bind_method(D_METHOD("get_lightmap_size_hint"), &Mesh::get_lightmap_size_hint);
+	//ClassDB::bind_method(D_METHOD("get_aabb"), &Mesh::get_aabb);
+	//ClassDB::bind_method(D_METHOD("get_faces"), &Mesh::_get_faces);
+
+	//ADD_PROPERTY(PropertyInfo(Variant::VECTOR2I, "lightmap_size_hint"), "set_lightmap_size_hint", "get_lightmap_size_hint");
+}
+
+/////////////////
+/* ArrayMesh */
+
 enum OldArrayType {
 	OLD_ARRAY_VERTEX,
 	OLD_ARRAY_NORMAL,
@@ -1762,7 +1791,29 @@ void ArrayMesh::_recompute_aabb() {
 	}
 }
 
-// TODO: Need to add binding to add_surface using future MeshSurfaceData object.
+void ArrayMesh::add_surface_from_data(const Ref<MeshSurfaceData> &p_surface_data) {
+	ERR_FAIL_COND(surfaces.size() == RS::MAX_MESH_SURFACES);
+	_create_if_empty();
+
+	RS::SurfaceData sd = p_surface_data->get_data();
+	Surface s;
+	s.aabb = sd.aabb;
+	s.is_2d = sd.format & ARRAY_FLAG_USE_2D_VERTICES;
+	s.primitive = Mesh::PrimitiveType(sd.primitive);
+	s.array_length = sd.vertex_count;
+	s.index_array_length = sd.index_count;
+	s.format = sd.format;
+
+	surfaces.push_back(s);
+	_recompute_aabb();
+
+	RenderingServer::get_singleton()->mesh_add_surface(mesh, sd);
+
+	clear_cache();
+	notify_property_list_changed();
+	emit_changed();
+}
+
 void ArrayMesh::add_surface(BitField<ArrayFormat> p_format, PrimitiveType p_primitive, const Vector<uint8_t> &p_array, const Vector<uint8_t> &p_attribute_array, const Vector<uint8_t> &p_skin_array, int p_vertex_count, const Vector<uint8_t> &p_index_array, int p_index_count, const AABB &p_aabb, const Vector<uint8_t> &p_blend_shape_data, const Vector<AABB> &p_bone_aabbs, const Vector<RS::SurfaceData::LOD> &p_lods, const Vector4 p_uv_scale) {
 	ERR_FAIL_COND(surfaces.size() == RS::MAX_MESH_SURFACES);
 	_create_if_empty();
@@ -1825,6 +1876,14 @@ void ArrayMesh::add_surface_from_arrays(PrimitiveType p_primitive, const Array &
 Array ArrayMesh::surface_get_arrays(int p_surface) const {
 	ERR_FAIL_INDEX_V(p_surface, surfaces.size(), Array());
 	return RenderingServer::get_singleton()->mesh_surface_get_arrays(mesh, p_surface);
+}
+
+Ref<MeshSurfaceData> ArrayMesh::surface_get_data(int p_surface) const {
+	ERR_FAIL_INDEX_V(p_surface, surfaces.size(), Array());
+	Ref<MeshSurfaceData> mesh_surface_data;
+	mesh_surface_data.instantiate();
+	mesh_surface_data.surface_data = RenderingServer::get_singleton()->mesh_surface_get_data(mesh, p_surface);
+	return mesh_surface_data;
 }
 
 TypedArray<Array> ArrayMesh::surface_get_blend_shape_arrays(int p_surface) const {
@@ -2273,6 +2332,7 @@ void ArrayMesh::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_blend_shape_mode"), &ArrayMesh::get_blend_shape_mode);
 
 	ClassDB::bind_method(D_METHOD("add_surface_from_arrays", "primitive", "arrays", "blend_shapes", "lods", "flags"), &ArrayMesh::add_surface_from_arrays, DEFVAL(Array()), DEFVAL(Dictionary()), DEFVAL(0));
+	ClassDB::bind_method(D_METHOD("add_surface_from_data", "surface_data"), &ArrayMesh::add_surface_from_data);
 	ClassDB::bind_method(D_METHOD("clear_surfaces"), &ArrayMesh::clear_surfaces);
 	ClassDB::bind_method(D_METHOD("surface_update_vertex_region", "surf_idx", "offset", "data"), &ArrayMesh::surface_update_vertex_region);
 	ClassDB::bind_method(D_METHOD("surface_update_attribute_region", "surf_idx", "offset", "data"), &ArrayMesh::surface_update_attribute_region);
