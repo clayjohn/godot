@@ -306,7 +306,6 @@ struct SceneShaderData : public ShaderData {
 	bool wireframe;
 
 	bool unshaded;
-	bool vertex_lighting;
 	bool uses_vertex;
 	bool uses_position;
 	bool uses_sss;

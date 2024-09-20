@@ -68,125 +68,6 @@ layout(location = 13) in vec4 previous_normal_attrib;
 
 #endif // MOTION_VECTORS
 
-#if !defined(MODE_RENDER_DEPTH) && !defined(MODE_UNSHADED) && defined(USE_VERTEX_LIGHTING)
-/* Specialization Constants (Toggles) */
-
-layout(constant_id = 2) const bool sc_use_light_soft_shadows = false;
-
-/* Specialization Constants (Values) */
-
-layout(constant_id = 8) const uint sc_directional_soft_shadow_samples = 4;
-layout(constant_id = 11) const bool sc_projector_use_mipmaps = true;
-
-void light_compute(vec3 N, vec3 L, vec3 V, float A, vec3 light_color, bool is_directional, float attenuation, uint orms,
-		inout vec3 diffuse_light, inout vec3 specular_light) {
-	vec4 orms_unpacked = unpackUnorm4x8(orms);
-
-	float roughness = orms_unpacked.y;
-	float metallic = orms_unpacked.z;
-
-	float NdotL = min(A + dot(N, L), 1.0);
-	float cNdotL = max(NdotL, 0.0); // clamped NdotL
-
-	if (metallic < 1.0) {
-		float diffuse_brdf_NL; // BRDF times N.L for calculating diffuse radiance
-
-#if defined(DIFFUSE_LAMBERT_WRAP)
-		// Energy conserving lambert wrap shader.
-		// https://web.archive.org/web/20210228210901/http://blog.stevemcauley.com/2011/12/03/energy-conserving-wrapped-diffuse/
-		diffuse_brdf_NL = max(0.0, (NdotL + roughness) / ((1.0 + roughness) * (1.0 + roughness))) * (1.0 / M_PI);
-#else
-		// lambert
-		diffuse_brdf_NL = cNdotL * (1.0 / M_PI);
-#endif
-
-		diffuse_light += light_color * diffuse_brdf_NL * attenuation;
-	}
-
-	if (roughness > 0.0) { // FIXME: roughness == 0 should not disable specular light entirely
-
-		// D
-
-		float specular_brdf_NL = 0.0;
-
-#if !defined(SPECULAR_DISABLED)
-		//normalized blinn always unless disabled
-		vec3 H = normalize(V + L);
-		float cNdotH = clamp(A + dot(N, H), 0.0, 1.0);
-		float shininess = exp2(15.0 * (1.0 - roughness) + 1.0) * 0.25;
-		float blinn = pow(cNdotH, shininess);
-		blinn *= (shininess + 2.0) * (1.0 / (8.0 * M_PI));
-		specular_brdf_NL = blinn;
-#endif
-		specular_light += specular_brdf_NL * light_color * attenuation;
-	}
-}
-
-float get_omni_attenuation(float distance, float inv_range, float decay) {
-	float nd = distance * inv_range;
-	nd *= nd;
-	nd *= nd; // nd^4
-	nd = max(1.0 - nd, 0.0);
-	nd *= nd; // nd^2
-	return nd * pow(max(distance, 0.0001), -decay);
-}
-
-void light_process_omni(uint idx, vec3 vertex, vec3 eye_vec, vec3 normal, vec3 vertex_ddx, vec3 vertex_ddy, uint orms, float shadow,
-		inout vec3 diffuse_light, inout vec3 specular_light) {
-	vec3 light_rel_vec = omni_lights.data[idx].position - vertex;
-	float light_length = length(light_rel_vec);
-	float omni_attenuation = get_omni_attenuation(light_length, omni_lights.data[idx].inv_radius, omni_lights.data[idx].attenuation);
-	float light_attenuation = omni_attenuation;
-	vec3 color = omni_lights.data[idx].color;
-
-	float size_A = 0.0;
-
-	if (sc_use_light_soft_shadows && omni_lights.data[idx].size > 0.0) {
-		float t = omni_lights.data[idx].size / max(0.001, light_length);
-		size_A = max(0.0, 1.0 - 1 / sqrt(1 + t * t));
-	}
-
-	light_attenuation *= shadow;
-
-	light_compute(normal, normalize(light_rel_vec), eye_vec, size_A, color, false, light_attenuation, orms,
-			diffuse_light,
-			specular_light);
-}
-
-void light_process_spot(uint idx, vec3 vertex, vec3 eye_vec, vec3 normal, vec3 vertex_ddx, vec3 vertex_ddy, uint orms, float shadow,
-		inout vec3 diffuse_light,
-		inout vec3 specular_light) {
-	vec3 light_rel_vec = spot_lights.data[idx].position - vertex;
-	float light_length = length(light_rel_vec);
-	float spot_attenuation = get_omni_attenuation(light_length, spot_lights.data[idx].inv_radius, spot_lights.data[idx].attenuation);
-	vec3 spot_dir = spot_lights.data[idx].direction;
-
-	// This conversion to a highp float is crucial to prevent light leaking
-	// due to precision errors in the following calculations (cone angle is mediump).
-	highp float cone_angle = spot_lights.data[idx].cone_angle;
-	float scos = max(dot(-normalize(light_rel_vec), spot_dir), cone_angle);
-	float spot_rim = max(0.0001, (1.0 - scos) / (1.0 - cone_angle));
-
-	spot_attenuation *= 1.0 - pow(spot_rim, spot_lights.data[idx].cone_attenuation);
-	float light_attenuation = spot_attenuation;
-	vec3 color = spot_lights.data[idx].color;
-	float specular_amount = spot_lights.data[idx].specular_amount;
-
-	float size_A = 0.0;
-
-	if (sc_use_light_soft_shadows && spot_lights.data[idx].size > 0.0) {
-		float t = spot_lights.data[idx].size / max(0.001, light_length);
-		size_A = max(0.0, 1.0 - 1 / sqrt(1 + t * t));
-	}
-
-	light_attenuation *= shadow;
-
-	light_compute(normal, normalize(light_rel_vec), eye_vec, size_A, color, false, light_attenuation, orms,
-			diffuse_light, specular_light);
-}
-
-#endif //!defined(MODE_RENDER_DEPTH) && !defined(MODE_UNSHADED) && defined(USE_VERTEX_LIGHTING)
-
 vec3 oct_to_vec3(vec2 e) {
 	vec3 v = vec3(e.xy, 1.0 - abs(e.x) - abs(e.y));
 	float t = max(-v.z, 0.0);
@@ -263,6 +144,7 @@ vec3 multiview_uv(vec2 uv) {
 ivec3 multiview_uv(ivec2 uv) {
 	return ivec3(uv, int(ViewIndex));
 }
+layout(location = 11) out vec4 combined_projected;
 #else // USE_MULTIVIEW
 // Set to zero, not supported in non stereo
 #define ViewIndex 0
@@ -272,12 +154,30 @@ vec2 multiview_uv(vec2 uv) {
 ivec2 multiview_uv(ivec2 uv) {
 	return uv;
 }
+
 #endif //USE_MULTIVIEW
-layout(location = 11) out vec4 combined_projected;
+
 #if !defined(MODE_RENDER_DEPTH) && !defined(MODE_UNSHADED) && defined(USE_VERTEX_LIGHTING)
 layout(location = 12) highp out vec4 diffuse_light_interp;
 layout(location = 13) highp out vec4 specular_light_interp;
-#endif
+
+#include "../scene_forward_vertex_lights_inc.glsl"
+
+void cluster_get_item_range(uint p_offset, out uint item_min, out uint item_max, out uint item_from, out uint item_to) {
+	uint item_min_max = cluster_buffer.data[p_offset];
+	item_min = item_min_max & 0xFFFFu;
+	item_max = item_min_max >> 16;
+
+	item_from = item_min >> 5;
+	item_to = (item_max == 0) ? 0 : ((item_max - 1) >> 5) + 1; //side effect of how it is stored, as item_max 0 means no elements
+}
+
+uint cluster_get_range_clip_mask(uint i, uint z_min, uint z_max) {
+	int local_min = clamp(int(z_min) - int(i) * 32, 0, 31);
+	int mask_width = min(int(z_max) - int(z_min), 32 - local_min);
+	return bitfieldInsert(uint(0), uint(0xFFFFFFFF), local_min, mask_width);
+}
+#endif // !defined(MODE_RENDER_DEPTH) && !defined(MODE_UNSHADED) && defined(USE_VERTEX_LIGHTING)
 invariant gl_Position;
 
 #GLOBALS
@@ -599,115 +499,149 @@ void vertex_shader(vec3 vertex_input,
 	gl_Position = projection_matrix * vec4(vertex_interp, 1.0);
 #endif
 
+#ifdef USE_MULTIVIEW
 	combined_projected = combined_projection * vec4(vertex_interp, 1.0);
+#endif
 
 #ifdef MOTION_VECTORS
 	screen_pos = gl_Position;
 #endif
-// VERTEX LIGHTING
-#ifdef USE_VERTEX_LIGHTING
-	float alpha = 1.0;
-#endif // USE_VERTEX_LIGHTING
 
 #if !defined(MODE_RENDER_DEPTH) && !defined(MODE_UNSHADED) && defined(USE_VERTEX_LIGHTING)
 	diffuse_light_interp = vec4(0.0);
 	specular_light_interp = vec4(0.0);
 
+#ifdef USE_MULTIVIEW
 	vec3 view = -normalize(vertex_interp - eye_offset);
-
-	vec3 vertex_ddx = vec3(0); // Fake variable
-	vec3 vertex_ddy = vec3(0); // Fake variable
-
-#if !defined(MODE_RENDER_DEPTH)
-	//this saves some VGPRs
-	uint orms = packUnorm4x8(vec4(0.0, roughness, 0.0, 0.0));
-#endif
-
-	{ // Directional light.
-
-		for (uint i = 0; i < 8; i++) {
-			if (i >= scene_data.directional_light_count) {
-				break;
-			}
-
-			if (!bool(directional_lights.data[i].mask & instances.data[instance_index].layer_mask)) {
-				continue; //not masked
-			}
-
-			if (directional_lights.data[i].bake_mode == LIGHT_BAKE_STATIC && bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
-				continue; // Statically baked light and object uses lightmap, skip
-			}
-
-			float shadow = 1.0;
-
-#ifdef DEBUG_DRAW_PSSM_SPLITS
-			vec3 tint = vec3(1.0);
-			if (-vertex.z < directional_lights.data[i].shadow_split_offsets.x) {
-				tint = vec3(1.0, 0.0, 0.0);
-			} else if (-vertex.z < directional_lights.data[i].shadow_split_offsets.y) {
-				tint = vec3(0.0, 1.0, 0.0);
-			} else if (-vertex.z < directional_lights.data[i].shadow_split_offsets.z) {
-				tint = vec3(0.0, 0.0, 1.0);
-			} else {
-				tint = vec3(1.0, 1.0, 0.0);
-			}
-			tint = mix(tint, vec3(1.0), shadow);
-			shadow = 1.0;
-#endif
-
-			float size_A = sc_use_light_soft_shadows ? directional_lights.data[i].size : 0.0;
-
-			light_compute(normal, directional_lights.data[i].direction, normalize(view), size_A,
-#ifndef DEBUG_DRAW_PSSM_SPLITS
-					directional_lights.data[i].color * directional_lights.data[i].energy,
+	vec2 clip_pos = clamp((combined_projected.xy / combined_projected.w) * 0.5 + 0.5, 0.0, 1.0);
 #else
-					directional_lights.data[i].color * directional_lights.data[i].energy * tint,
+	vec3 view = -normalize(vertex_interp);
+	vec2 clip_pos = clamp((gl_Position.xy / gl_Position.w) * 0.5 + 0.5, 0.0, 1.0);
 #endif
-					true, 1.0, orms,
-					diffuse_light_interp.rgb,
-					specular_light_interp.rgb);
-		}
-	}
+
+	uvec2 cluster_pos = uvec2(clip_pos / scene_data.screen_pixel_size) >> implementation_data.cluster_shift;
+	uint cluster_offset = (implementation_data.cluster_width * cluster_pos.y + cluster_pos.x) * (implementation_data.max_cluster_element_count_div_32 + 32);
+	uint cluster_z = uint(clamp((-vertex_interp.z / scene_data.z_far) * 32.0, 0.0, 31.0));
 
 	{ //omni lights
-		for (uint i = 0; i < 8; i++) {
-			uint light_index = 32 * i & 0xFF;
 
-			if (light_index == 0xFF) {
-				break;
-			}
-			if (!bool(omni_lights.data[light_index].mask & instances.data[instance_index].layer_mask)) {
-				continue; //not masked
-			}
+		uint cluster_omni_offset = cluster_offset;
 
-			if (omni_lights.data[light_index].bake_mode == LIGHT_BAKE_STATIC && bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
-				continue; // Statically baked light and object uses lightmap, skip
-			}
+		uint item_min;
+		uint item_max;
+		uint item_from;
+		uint item_to;
 
-			light_process_omni(light_index, vertex, view, normal, vertex_ddx, vertex_ddy, orms, 1.0,
-					diffuse_light_interp.rgb, specular_light_interp.rgb);
+		cluster_get_item_range(cluster_omni_offset + implementation_data.max_cluster_element_count_div_32 + cluster_z, item_min, item_max, item_from, item_to);
+
+		for (uint i = item_from; i < item_to; i++) {
+			uint mask = cluster_buffer.data[cluster_omni_offset + i];
+			mask &= cluster_get_range_clip_mask(i, item_min, item_max);
+			uint merged_mask = mask;
+
+			while (merged_mask != 0) {
+				uint bit = findMSB(merged_mask);
+				merged_mask &= ~(1u << bit);
+				uint light_index = 32 * i + bit;
+
+				if (!bool(omni_lights.data[light_index].mask & instances.data[instance_index].layer_mask)) {
+					continue; //not masked
+				}
+
+				if (omni_lights.data[light_index].bake_mode == LIGHT_BAKE_STATIC && bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
+					continue; // Statically baked light and object uses lightmap, skip
+				}
+
+				light_process_omni_vertex(light_index, vertex, view, normal, roughness,
+						diffuse_light_interp.rgb, specular_light_interp.rgb);
+			}
 		}
 	}
 
 	{ //spot lights
-		for (uint i = 0; i < 8; i++) {
-			uint light_index = 32 * i & 0xFF;
+		uint cluster_spot_offset = cluster_offset + implementation_data.cluster_type_size;
 
-			if (light_index == 0xFF) {
-				break;
+		uint item_min;
+		uint item_max;
+		uint item_from;
+		uint item_to;
+
+		cluster_get_item_range(cluster_spot_offset + implementation_data.max_cluster_element_count_div_32 + cluster_z, item_min, item_max, item_from, item_to);
+
+		for (uint i = item_from; i < item_to; i++) {
+			uint mask = cluster_buffer.data[cluster_spot_offset + i];
+			mask &= cluster_get_range_clip_mask(i, item_min, item_max);
+			uint merged_mask = mask;
+
+			while (merged_mask != 0) {
+				uint bit = findMSB(merged_mask);
+				merged_mask &= ~(1u << bit);
+
+				uint light_index = 32 * i + bit;
+
+				if (!bool(spot_lights.data[light_index].mask & instances.data[instance_index].layer_mask)) {
+					continue; //not masked
+				}
+
+				if (spot_lights.data[light_index].bake_mode == LIGHT_BAKE_STATIC && bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
+					continue; // Statically baked light and object uses lightmap, skip
+				}
+
+				light_process_spot_vertex(light_index, vertex, view, normal, roughness,
+						diffuse_light_interp.rgb, specular_light_interp.rgb);
 			}
-
-			if (!bool(spot_lights.data[light_index].mask & instances.data[instance_index].layer_mask)) {
-				continue; //not masked
-			}
-
-			if (spot_lights.data[light_index].bake_mode == LIGHT_BAKE_STATIC && bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
-				continue; // Statically baked light and object uses lightmap, skip
-			}
-
-			light_process_spot(light_index, vertex, view, normal, vertex_ddx, vertex_ddy, orms, 1.0,
-					diffuse_light_interp.rgb, specular_light_interp.rgb);
 		}
+	}
+
+	{ // Directional light.
+
+		// We process the first directional light separately as it may have shadows.
+		vec3 directional_diffuse = vec3(0.0);
+		vec3 directional_specular = vec3(0.0);
+
+		for (uint i = 0; i < scene_data.directional_light_count; i++) {
+			if (!bool(directional_lights.data[i].mask & instances.data[draw_call.instance_index].layer_mask)) {
+				continue; // Not masked, skip.
+			}
+
+			if (directional_lights.data[i].bake_mode == LIGHT_BAKE_STATIC && bool(instances.data[draw_call.instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
+				continue; // Statically baked light and object uses lightmap, skip.
+			}
+			if (i == 0) {
+				light_compute_vertex(normal, directional_lights.data[0].direction, view,
+						directional_lights.data[0].color * directional_lights.data[0].energy,
+						true, roughness,
+						directional_diffuse,
+						directional_specular);
+			} else {
+				light_compute_vertex(normal, directional_lights.data[i].direction, view,
+						directional_lights.data[i].color * directional_lights.data[i].energy,
+						true, roughness,
+						diffuse_light_interp.rgb,
+						specular_light_interp.rgb);
+			}
+		}
+
+		// Calculate the contribution from the shadowed light so we can scale the shadows accordingly.
+		float diff_avg = dot(diffuse_light_interp.rgb, vec3(0.33333));
+		float diff_dir_avg = dot(directional_diffuse, vec3(0.33333));
+		if (diff_avg > 0.0) {
+			diffuse_light_interp.a = diff_dir_avg / (diff_avg + diff_dir_avg);
+		} else {
+			diffuse_light_interp.a = 1.0;
+		}
+
+		diffuse_light_interp.rgb += directional_diffuse;
+
+		float spec_avg = dot(specular_light_interp.rgb, vec3(0.33333));
+		float spec_dir_avg = dot(directional_specular, vec3(0.33333));
+		if (spec_avg > 0.0) {
+			specular_light_interp.a = spec_dir_avg / (spec_avg + spec_dir_avg);
+		} else {
+			specular_light_interp.a = 1.0;
+		}
+
+		specular_light_interp.rgb += directional_specular;
 	}
 
 #endif //!defined(MODE_RENDER_DEPTH) && !defined(MODE_UNSHADED) && defined(USE_VERTEX_LIGHTING)
@@ -1210,7 +1144,7 @@ void fragment_shader(in SceneData scene_data) {
 #ifdef PREMUL_ALPHA_USED
 	float premul_alpha = 1.0;
 #endif // PREMUL_ALPHA_USED
-	//lay out everything, whatever is unused is optimized away anyway
+	   //lay out everything, whatever is unused is optimized away anyway
 	vec3 vertex = vertex_interp;
 #ifdef USE_MULTIVIEW
 	vec3 eye_offset = scene_data.eye_offset[ViewIndex].xyz;
@@ -1584,7 +1518,7 @@ void fragment_shader(in SceneData scene_data) {
 	//pack albedo until needed again, saves 2 VGPRs in the meantime
 
 #endif //not render depth
-	/////////////////////// LIGHTING //////////////////////////////
+	   /////////////////////// LIGHTING //////////////////////////////
 
 #ifdef NORMAL_USED
 	if (scene_data.roughness_limiter_enabled) {
@@ -2024,7 +1958,7 @@ void fragment_shader(in SceneData scene_data) {
 		}
 	}
 #endif // AMBIENT_LIGHT_DISABLED
-	// convert ao to direct light ao
+	   // convert ao to direct light ao
 	ao = mix(1.0, ao, ao_light_affect);
 
 	//this saves some VGPRs
@@ -2062,6 +1996,11 @@ void fragment_shader(in SceneData scene_data) {
 // LIGHTING
 #if !defined(MODE_RENDER_DEPTH) && !defined(MODE_UNSHADED)
 
+#ifdef USE_VERTEX_LIGHTING
+	diffuse_light += diffuse_light_interp.rgb;
+	specular_light += specular_light_interp.rgb * f0;
+#endif
+
 	{ // Directional light.
 
 		// Do shadow and lighting in two passes to reduce register pressure.
@@ -2069,10 +2008,15 @@ void fragment_shader(in SceneData scene_data) {
 		uint shadow0 = 0;
 		uint shadow1 = 0;
 
+#ifdef USE_VERTEX_LIGHTING
+		// Only process the first light's shadow for vertex lighting.
+		for (uint i = 0; i < 1; i++) {
+#else
 		for (uint i = 0; i < 8; i++) {
 			if (i >= scene_data.directional_light_count) {
 				break;
 			}
+#endif
 
 			if (!bool(directional_lights.data[i].mask & instances.data[instance_index].layer_mask)) {
 				continue; //not masked
@@ -2270,6 +2214,11 @@ void fragment_shader(in SceneData scene_data) {
 
 				shadow = mix(shadow, 1.0, smoothstep(directional_lights.data[i].fade_from, directional_lights.data[i].fade_to, vertex.z)); //done with negative values for performance
 
+#ifdef USE_VERTEX_LIGHTING
+				diffuse_light *= mix(1.0, shadow, diffuse_light_interp.a);
+				specular_light *= mix(1.0, shadow, specular_light_interp.a);
+#endif
+
 #undef BIAS_FUNC
 			} // shadows
 
@@ -2280,6 +2229,8 @@ void fragment_shader(in SceneData scene_data) {
 			}
 		}
 #endif // SHADOWS_DISABLED
+
+#ifndef USE_VERTEX_LIGHTING
 
 		for (uint i = 0; i < 8; i++) {
 			if (i >= scene_data.directional_light_count) {
@@ -2354,12 +2305,7 @@ void fragment_shader(in SceneData scene_data) {
 #endif
 
 			blur_shadow(shadow);
-#ifdef USE_VERTEX_LIGHTING
-			// Apply Fragment Shadows on vertex lighting
-			diffuse_light += diffuse_light_interp.rgb * shadow;
-			specular_light += specular_light_interp.rgb * shadow;
-#else // USE_VERTEX_LIGHTING
-// Fragment lighting
+
 #ifdef DEBUG_DRAW_PSSM_SPLITS
 			vec3 tint = vec3(1.0);
 			if (-vertex.z < directional_lights.data[i].shadow_split_offsets.x) {
@@ -2405,10 +2351,11 @@ void fragment_shader(in SceneData scene_data) {
 #endif
 					diffuse_light,
 					specular_light);
-#endif // USE_VERTEX_LIGHTING
 		}
+#endif // USE_VERTEX_LIGHTING
 	}
 
+#ifndef USE_VERTEX_LIGHTING
 	{ //omni lights
 
 		uint cluster_omni_offset = cluster_offset;
@@ -2455,18 +2402,7 @@ void fragment_shader(in SceneData scene_data) {
 				float shadow = light_process_omni_shadow(light_index, vertex, normal);
 
 				shadow = blur_shadow(shadow);
-#ifdef USE_VERTEX_LIGHTING
-				// Apply Fragment Shadows on vertex lighting
-				vec3 light_rel_vec = omni_lights.data[light_index].position - vertex;
-				float light_length = length(light_rel_vec);
-				float omni_attenuation = get_omni_attenuation(light_length, omni_lights.data[light_index].inv_radius, omni_lights.data[light_index].attenuation);
 
-				float light_attenuation = omni_attenuation;
-				light_attenuation *= shadow;
-				diffuse_light += diffuse_light_interp.rgb * light_attenuation;
-				specular_light += specular_light_interp.rgb * light_attenuation;
-#else // USE_VERTEX_LIGHTING
-	  // Fragment lighting
 				light_process_omni(light_index, vertex, view, normal, vertex_ddx, vertex_ddy, f0, orms, shadow, albedo, alpha,
 #ifdef LIGHT_BACKLIGHT_USED
 						backlight,
@@ -2487,7 +2423,6 @@ void fragment_shader(in SceneData scene_data) {
 						tangent, binormal, anisotropy,
 #endif
 						diffuse_light, specular_light);
-#endif // USE_VERTEX_LIGHTING
 			}
 		}
 	}
@@ -2539,26 +2474,7 @@ void fragment_shader(in SceneData scene_data) {
 				float shadow = light_process_spot_shadow(light_index, vertex, normal);
 
 				shadow = blur_shadow(shadow);
-#ifdef USE_VERTEX_LIGHTING
-				// Apply Fragment Shadows on vertex lighting
-				vec3 light_rel_vec = spot_lights.data[light_index].position - vertex;
-				float light_length = length(light_rel_vec);
-				float spot_attenuation = get_omni_attenuation(light_length, spot_lights.data[light_index].inv_radius, spot_lights.data[light_index].attenuation);
-				vec3 spot_dir = spot_lights.data[light_index].direction;
 
-				// This conversion to a highp float is crucial to prevent light leaking
-				// due to precision errors in the following calculations (cone angle is mediump).
-				highp float cone_angle = spot_lights.data[light_index].cone_angle;
-				float scos = max(dot(-normalize(light_rel_vec), spot_dir), cone_angle);
-				float spot_rim = max(0.0001, (1.0 - scos) / (1.0 - cone_angle));
-
-				spot_attenuation *= 1.0 - pow(spot_rim, spot_lights.data[light_index].cone_attenuation);
-				float light_attenuation = spot_attenuation;
-				light_attenuation *= shadow;
-				diffuse_light += diffuse_light_interp.rgb * light_attenuation;
-				specular_light += specular_light_interp.rgb * light_attenuation;
-#else // USE_VERTEX_LIGHTING
-	  // Fragment lighting
 				light_process_spot(light_index, vertex, view, normal, vertex_ddx, vertex_ddy, f0, orms, shadow, albedo, alpha,
 #ifdef LIGHT_BACKLIGHT_USED
 						backlight,
@@ -2580,11 +2496,10 @@ void fragment_shader(in SceneData scene_data) {
 						binormal, anisotropy,
 #endif
 						diffuse_light, specular_light);
-#endif // USE_VERTEX_LIGHTING
 			}
 		}
 	}
-
+#endif // !USE_VERTEX_LIGHTING
 #endif //!defined(MODE_RENDER_DEPTH) && !defined(MODE_UNSHADED)
 
 #ifdef USE_SHADOW_TO_OPACITY
