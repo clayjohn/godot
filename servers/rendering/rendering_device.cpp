@@ -3935,6 +3935,11 @@ void RenderingDevice::draw_list_bind_uniform_set(DrawListID p_list, RID p_unifor
 #ifdef DEBUG_ENABLED
 	ERR_FAIL_COND_MSG(p_index >= driver->limit_get(LIMIT_MAX_BOUND_UNIFORM_SETS) || p_index >= MAX_UNIFORM_SETS,
 			"Attempting to bind a descriptor set (" + itos(p_index) + ") greater than what the hardware supports (" + itos(driver->limit_get(LIMIT_MAX_BOUND_UNIFORM_SETS)) + ").");
+#ifdef DEV_ENABLED
+	// Most mobile devices only support up to 4. Therefore for the built in
+	// renderers, we need to ensure we never use more than 4.
+	DEV_ASSERT(p_index < 4);
+#endif
 #endif
 	DrawList *dl = _get_draw_list_ptr(p_list);
 	ERR_FAIL_NULL(dl);
@@ -4401,6 +4406,11 @@ void RenderingDevice::compute_list_bind_uniform_set(ComputeListID p_list, RID p_
 #ifdef DEBUG_ENABLED
 	ERR_FAIL_COND_MSG(p_index >= driver->limit_get(LIMIT_MAX_BOUND_UNIFORM_SETS) || p_index >= MAX_UNIFORM_SETS,
 			"Attempting to bind a descriptor set (" + itos(p_index) + ") greater than what the hardware supports (" + itos(driver->limit_get(LIMIT_MAX_BOUND_UNIFORM_SETS)) + ").");
+#ifdef DEV_ENABLED
+	// Most mobile devices only support up to 4. Therefore for the built in
+	// renderers, we need to ensure we never use more than 4.
+	DEV_ASSERT(p_index < 4);
+#endif
 #endif
 
 #ifdef DEBUG_ENABLED
