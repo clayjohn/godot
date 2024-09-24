@@ -48,7 +48,7 @@ public:
 	Transform3D cam_transform;
 	Projection cam_projection;
 	Vector2 taa_jitter;
-	float taa_jitter_fraction = 0.0f;
+	float taa_frame_count = 0.0f;
 	uint32_t camera_visible_layers;
 	bool cam_orthogonal = false;
 	bool flip_y = false;
@@ -150,7 +150,7 @@ private:
 		float fog_height_density;
 		float fog_depth_curve;
 		float fog_depth_begin;
-		float jitter_fraction; // Used to improve temporal effect quality (value is always between 0.0 and 1.0).
+		float taa_frame_count; // Used to add break up samples over multiple frames. Value is an integer from 0 to taa_phase_count -1.
 
 		float fog_light_color[3];
 		float fog_depth_end;
