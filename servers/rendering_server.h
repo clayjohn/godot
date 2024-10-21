@@ -1140,9 +1140,28 @@ public:
 
 	/* COMPOSITOR API */
 
+	enum CompositorCustomBufferFormat {
+		COMPOSITOR_CUSTOM_BUFFER_DISABLED,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_R8,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_RG8,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_RGBA8,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_R16F,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_RG16F,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_RGBA16F,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_R32F,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_RG32F,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_RGBA32F,
+	};
+
+	enum {
+		COMPOSITOR_MAX_BUFFERS = 4
+	};
+
 	virtual RID compositor_create() = 0;
 
 	virtual void compositor_set_compositor_effects(RID p_compositor, const TypedArray<RID> &p_effects) = 0;
+
+	virtual void compositor_set_custom_buffer_format(RID p_compositor, int p_buffer_index, CompositorCustomBufferFormat p_format) = 0;
 
 	/* ENVIRONMENT API */
 
@@ -1758,7 +1777,7 @@ public:
 
 #ifndef DISABLE_DEPRECATED
 	// Never actually used, should be removed when we can break compatibility.
-	enum Features {
+	enum Features{
 		FEATURE_SHADERS,
 		FEATURE_MULTITHREADED,
 	};
