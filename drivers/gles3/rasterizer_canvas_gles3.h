@@ -182,7 +182,7 @@ public:
 		uint32_t directional_light_count;
 		float tex_to_sdf;
 		uint32_t pad1;
-		uint32_t pad2;
+		uint32_t instance_uniforms_ofs;
 	};
 
 	static_assert(sizeof(StateBuffer) % 16 == 0, "2D state UBO size must be a multiple of 16 bytes");
@@ -217,7 +217,8 @@ public:
 				};
 				float dst_rect[4];
 				float src_rect[4];
-				float pad[2];
+				float pad[1];
+				uint32_t instance_uniforms_ofs;
 			};
 			//primitive
 			struct {

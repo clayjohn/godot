@@ -1193,6 +1193,8 @@ MaterialStorage::MaterialStorage() {
 		actions.render_mode_defines["world_vertex_coords"] = "#define USE_WORLD_VERTEX_COORDS\n";
 
 		actions.global_buffer_array_variable = "global_shader_uniforms";
+		// TODO: This doesn't work (yet)
+		actions.instance_uniform_index_variable = "canvas_data.instance_uniforms_ofs";
 
 		shaders.compiler_canvas.initialize(actions);
 	}
@@ -1379,7 +1381,8 @@ MaterialStorage::MaterialStorage() {
 
 		actions.check_multiview_samplers = RasterizerGLES3::get_singleton()->is_xr_enabled();
 		actions.global_buffer_array_variable = "global_shader_uniforms";
-		actions.instance_uniform_index_variable = "instance_offset";
+		// TODO: This doesn't work (yet)
+		actions.instance_uniform_index_variable = "canvas_data.instance_uniforms_ofs";
 
 		shaders.compiler_scene.initialize(actions);
 	}
@@ -1443,6 +1446,8 @@ MaterialStorage::MaterialStorage() {
 		actions.default_repeat = ShaderLanguage::REPEAT_ENABLE;
 
 		actions.global_buffer_array_variable = "global_shader_uniforms";
+		// TODO: This doesn't work (yet)
+		actions.instance_uniform_index_variable = "canvas_data.instance_uniforms_ofs";
 
 		shaders.compiler_particles.initialize(actions);
 	}
