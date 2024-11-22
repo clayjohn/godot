@@ -52,24 +52,32 @@ enum BetsyFormat {
 	BETSY_FORMAT_BC3,
 	BETSY_FORMAT_BC4_SIGNED,
 	BETSY_FORMAT_BC4_UNSIGNED,
+	BETSY_FORMAT_BC5_SIGNED,
+	BETSY_FORMAT_BC5_UNSIGNED,
 	BETSY_FORMAT_BC6_SIGNED,
 	BETSY_FORMAT_BC6_UNSIGNED,
+};
+
+enum BetsyShaderType {
+	BETSY_SHADER_BC1,
+	BETSY_SHADER_BC4,
+	BETSY_SHADER_BC6,
 };
 
 struct BC6PushConstant {
 	float sizeX;
 	float sizeY;
-	uint32_t padding[2];
+	uint32_t padding[2] = { 0 };
 };
 
 struct BC1PushConstant {
 	uint32_t num_refines;
-	uint32_t padding[3];
+	uint32_t padding[3] = { 0 };
 };
 
 struct BC4PushConstant {
 	uint32_t channel_idx;
-	uint32_t padding[3];
+	uint32_t padding[3] = { 0 };
 };
 
 void free_device();
@@ -101,6 +109,7 @@ class BetsyCompressor : public Object {
 	void _thread_loop();
 	void _thread_exit();
 
+	Error _get_shader(const String &p_name, const String &p_version, const char *p_source, BetsyShader &r_shader);
 	Error _compress(BetsyFormat p_format, Image *r_img);
 
 public:

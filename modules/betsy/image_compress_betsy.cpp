@@ -34,6 +34,7 @@
 
 #include "betsy_bc1.h"
 
+#include "alpha_stitch.glsl.gen.h"
 #include "bc1.glsl.gen.h"
 #include "bc4.glsl.gen.h"
 #include "bc6h.glsl.gen.h"
@@ -162,26 +163,136 @@ static int get_next_multiple(int n, int m) {
 	return n + (m - (n % m));
 }
 
-static String get_shader_name(BetsyFormat p_format) {
-	switch (p_format) {
-		case BETSY_FORMAT_BC1:
-		case BETSY_FORMAT_BC1_DITHER:
+static String get_shader_name(BetsyShaderType p_type) {
+	switch (p_type) {
+		case BETSY_SHADER_BC1:
 			return "BC1";
 
-		case BETSY_FORMAT_BC3:
-			return "BC3";
-
-		case BETSY_FORMAT_BC4_SIGNED:
-		case BETSY_FORMAT_BC4_UNSIGNED:
+		case BETSY_SHADER_BC4:
 			return "BC4";
 
-		case BETSY_FORMAT_BC6_SIGNED:
-		case BETSY_FORMAT_BC6_UNSIGNED:
+		case BETSY_SHADER_BC6:
 			return "BC6";
 
 		default:
 			return "";
 	}
+}
+
+static Error get_src_texture_format(Image *r_img, RD::DataFormat &r_format) {
+	switch (r_img->get_format()) {
+		case Image::FORMAT_L8:
+			r_img->convert(Image::FORMAT_RGBA8);
+			r_format = RD::DATA_FORMAT_R8G8B8A8_UNORM;
+			break;
+
+		case Image::FORMAT_LA8:
+			r_img->convert(Image::FORMAT_RGBA8);
+			r_format = RD::DATA_FORMAT_R8G8B8A8_UNORM;
+			break;
+
+		case Image::FORMAT_R8:
+			r_format = RD::DATA_FORMAT_R8_UNORM;
+			break;
+
+		case Image::FORMAT_RG8:
+			r_format = RD::DATA_FORMAT_R8G8_UNORM;
+			break;
+
+		case Image::FORMAT_RGB8:
+			r_img->convert(Image::FORMAT_RGBA8);
+			r_format = RD::DATA_FORMAT_R8G8B8A8_UNORM;
+			break;
+
+		case Image::FORMAT_RGBA8:
+			r_format = RD::DATA_FORMAT_R8G8B8A8_UNORM;
+			break;
+
+		case Image::FORMAT_RH:
+			r_format = RD::DATA_FORMAT_R16_SFLOAT;
+			break;
+
+		case Image::FORMAT_RGH:
+			r_format = RD::DATA_FORMAT_R16G16_SFLOAT;
+			break;
+
+		case Image::FORMAT_RGBH:
+			r_img->convert(Image::FORMAT_RGBAH);
+			r_format = RD::DATA_FORMAT_R16G16B16A16_SFLOAT;
+			break;
+
+		case Image::FORMAT_RGBAH:
+			r_format = RD::DATA_FORMAT_R16G16B16A16_SFLOAT;
+			break;
+
+		case Image::FORMAT_RF:
+			r_format = RD::DATA_FORMAT_R32_SFLOAT;
+			break;
+
+		case Image::FORMAT_RGF:
+			r_format = RD::DATA_FORMAT_R32G32_SFLOAT;
+			break;
+
+		case Image::FORMAT_RGBF:
+			r_img->convert(Image::FORMAT_RGBAF);
+			r_format = RD::DATA_FORMAT_R32G32B32A32_SFLOAT;
+			break;
+
+		case Image::FORMAT_RGBAF:
+			r_format = RD::DATA_FORMAT_R32G32B32A32_SFLOAT;
+			break;
+
+		case Image::FORMAT_RGBE9995:
+			r_format = RD::DATA_FORMAT_E5B9G9R9_UFLOAT_PACK32;
+			break;
+
+		default: {
+			return ERR_UNAVAILABLE;
+		}
+	}
+
+	return OK;
+}
+
+Error BetsyCompressor::_get_shader(const String &p_name, const String &p_version, const char *p_source, BetsyShader &r_shader) {
+	const String shader_name = p_name + "-" + p_version;
+
+	Error err = OK;
+
+	if (cached_shaders.has(p_name)) {
+		r_shader = cached_shaders[p_name];
+
+	} else {
+		Ref<RDShaderFile> source;
+		source.instantiate();
+
+		err = source->parse_versions_from_text(p_source);
+
+		if (err != OK) {
+			source->print_errors("Betsy compress shader");
+			return err;
+		}
+
+		// Compile the shader, return early if invalid.
+		r_shader.compiled = compress_rd->shader_create_from_spirv(source->get_spirv_stages(p_version));
+		if (r_shader.compiled.is_null()) {
+			return ERR_CANT_CREATE;
+		}
+
+		// Compile the pipeline, return early if invalid.
+		r_shader.pipeline = compress_rd->compute_pipeline_create(r_shader.compiled);
+		if (r_shader.pipeline.is_null()) {
+			return ERR_CANT_CREATE;
+		}
+
+		cached_shaders[shader_name] = r_shader;
+	}
+
+	if (r_shader.compiled.is_null() || r_shader.pipeline.is_null()) {
+		err = ERR_INVALID_DATA;
+	}
+
+	return err;
 }
 
 Error BetsyCompressor::_compress(BetsyFormat p_format, Image *r_img) {
@@ -202,35 +313,73 @@ Error BetsyCompressor::_compress(BetsyFormat p_format, Image *r_img) {
 	Image::Format dest_format = Image::FORMAT_MAX;
 	RD::DataFormat dst_rd_format = RD::DATA_FORMAT_MAX;
 
+	BetsyShaderType shader_type = BETSY_SHADER_BC1;
+	bool needs_alpha_block = false;
 	String version = "";
+	const char *shader_source = "";
 
 	switch (p_format) {
 		case BETSY_FORMAT_BC1:
+			shader_type = BETSY_SHADER_BC1;
 			version = "standard";
+			shader_source = bc1_shader_glsl;
+
 			dst_rd_format = RD::DATA_FORMAT_R32G32_UINT;
 			dest_format = Image::FORMAT_DXT1;
 			break;
 
 		case BETSY_FORMAT_BC1_DITHER:
+			shader_type = BETSY_SHADER_BC1;
 			version = "dithered";
+			shader_source = bc1_shader_glsl;
+
 			dst_rd_format = RD::DATA_FORMAT_R32G32_UINT;
 			dest_format = Image::FORMAT_DXT1;
 			break;
 
+		case BETSY_FORMAT_BC3:
+			shader_type = BETSY_SHADER_BC1;
+			version = "standard";
+			shader_source = bc1_shader_glsl;
+			needs_alpha_block = true;
+
+			dst_rd_format = RD::DATA_FORMAT_R32G32_UINT;
+			dest_format = Image::FORMAT_DXT5;
+			break;
+
 		case BETSY_FORMAT_BC4_UNSIGNED:
+			shader_type = BETSY_SHADER_BC4;
 			version = "unsigned";
+			shader_source = bc4_shader_glsl;
+
 			dst_rd_format = RD::DATA_FORMAT_R32G32_UINT;
 			dest_format = Image::FORMAT_RGTC_R;
 			break;
 
+		case BETSY_FORMAT_BC5_UNSIGNED:
+			shader_type = BETSY_SHADER_BC4;
+			version = "unsigned";
+			shader_source = bc4_shader_glsl;
+			needs_alpha_block = true;
+
+			dst_rd_format = RD::DATA_FORMAT_R32G32_UINT;
+			dest_format = Image::FORMAT_RGTC_RG;
+			break;
+
 		case BETSY_FORMAT_BC6_SIGNED:
+			shader_type = BETSY_SHADER_BC6;
 			version = "signed";
+			shader_source = bc6h_shader_glsl;
+
 			dst_rd_format = RD::DATA_FORMAT_R32G32B32A32_UINT;
 			dest_format = Image::FORMAT_BPTC_RGBF;
 			break;
 
 		case BETSY_FORMAT_BC6_UNSIGNED:
+			shader_type = BETSY_SHADER_BC6;
 			version = "unsigned";
+			shader_source = bc6h_shader_glsl;
+
 			dst_rd_format = RD::DATA_FORMAT_R32G32B32A32_UINT;
 			dest_format = Image::FORMAT_BPTC_RGBFU;
 			break;
@@ -240,59 +389,28 @@ Error BetsyCompressor::_compress(BetsyFormat p_format, Image *r_img) {
 			break;
 	}
 
-	const String shader_name = get_shader_name(p_format) + "-" + version;
 	BetsyShader shader;
+	err = _get_shader(get_shader_name(shader_type), version, shader_source, shader);
 
-	if (cached_shaders.has(shader_name)) {
-		shader = cached_shaders[shader_name];
+	if (err != OK) {
+		return err;
+	}
 
-	} else {
-		Ref<RDShaderFile> source;
-		source.instantiate();
-
-		switch (p_format) {
-			case BETSY_FORMAT_BC1:
-			case BETSY_FORMAT_BC1_DITHER:
-				err = source->parse_versions_from_text(bc1_shader_glsl);
-				break;
-
-			case BETSY_FORMAT_BC4_SIGNED:
-			case BETSY_FORMAT_BC4_UNSIGNED:
-				err = source->parse_versions_from_text(bc4_shader_glsl);
-				break;
-
-			case BETSY_FORMAT_BC6_SIGNED:
-			case BETSY_FORMAT_BC6_UNSIGNED:
-				err = source->parse_versions_from_text(bc6h_shader_glsl);
-				break;
-
-			default:
-				err = ERR_INVALID_PARAMETER;
-				break;
-		}
+	// The secondary shader is used for alpha blocks. For BC it's BC4U and for ETC it's ETC2_RU (8-bit variant).
+	BetsyShader secondary_shader;
+	BetsyShader stitch_shader;
+	if (needs_alpha_block) {
+		err = _get_shader(get_shader_name(BETSY_SHADER_BC4), "unsigned", bc4_shader_glsl, secondary_shader);
 
 		if (err != OK) {
-			source->print_errors("Betsy compress shader");
 			return err;
 		}
 
-		// Compile the shader, return early if invalid.
-		shader.compiled = compress_rd->shader_create_from_spirv(source->get_spirv_stages(version));
-		if (shader.compiled.is_null()) {
-			return ERR_CANT_CREATE;
+		err = _get_shader("stitch", "standard", alpha_stitch_shader_glsl, stitch_shader);
+
+		if (err != OK) {
+			return err;
 		}
-
-		// Compile the pipeline, return early if invalid.
-		shader.pipeline = compress_rd->compute_pipeline_create(shader.compiled);
-		if (shader.pipeline.is_null()) {
-			return ERR_CANT_CREATE;
-		}
-
-		cached_shaders[shader_name] = shader;
-	}
-
-	if (shader.compiled.is_null() || shader.pipeline.is_null()) {
-		return ERR_INVALID_DATA;
 	}
 
 	// src_texture format information.
@@ -305,75 +423,10 @@ Error BetsyCompressor::_compress(BetsyFormat p_format, Image *r_img) {
 		src_texture_format.usage_bits = RD::TEXTURE_USAGE_SAMPLING_BIT | RD::TEXTURE_USAGE_CAN_UPDATE_BIT | RD::TEXTURE_USAGE_CAN_COPY_TO_BIT;
 	}
 
-	switch (r_img->get_format()) {
-		case Image::FORMAT_L8:
-			r_img->convert(Image::FORMAT_RGBA8);
-			src_texture_format.format = RD::DATA_FORMAT_R8G8B8A8_UNORM;
-			break;
+	err = get_src_texture_format(r_img, src_texture_format.format);
 
-		case Image::FORMAT_LA8:
-			r_img->convert(Image::FORMAT_RGBA8);
-			src_texture_format.format = RD::DATA_FORMAT_R8G8B8A8_UNORM;
-			break;
-
-		case Image::FORMAT_R8:
-			src_texture_format.format = RD::DATA_FORMAT_R8_UNORM;
-			break;
-
-		case Image::FORMAT_RG8:
-			src_texture_format.format = RD::DATA_FORMAT_R8G8_UNORM;
-			break;
-
-		case Image::FORMAT_RGB8:
-			r_img->convert(Image::FORMAT_RGBA8);
-			src_texture_format.format = RD::DATA_FORMAT_R8G8B8A8_UNORM;
-			break;
-
-		case Image::FORMAT_RGBA8:
-			src_texture_format.format = RD::DATA_FORMAT_R8G8B8A8_UNORM;
-			break;
-
-		case Image::FORMAT_RH:
-			src_texture_format.format = RD::DATA_FORMAT_R16_SFLOAT;
-			break;
-
-		case Image::FORMAT_RGH:
-			src_texture_format.format = RD::DATA_FORMAT_R16G16_SFLOAT;
-			break;
-
-		case Image::FORMAT_RGBH:
-			r_img->convert(Image::FORMAT_RGBAH);
-			src_texture_format.format = RD::DATA_FORMAT_R16G16B16A16_SFLOAT;
-			break;
-
-		case Image::FORMAT_RGBAH:
-			src_texture_format.format = RD::DATA_FORMAT_R16G16B16A16_SFLOAT;
-			break;
-
-		case Image::FORMAT_RF:
-			src_texture_format.format = RD::DATA_FORMAT_R32_SFLOAT;
-			break;
-
-		case Image::FORMAT_RGF:
-			src_texture_format.format = RD::DATA_FORMAT_R32G32_SFLOAT;
-			break;
-
-		case Image::FORMAT_RGBF:
-			r_img->convert(Image::FORMAT_RGBAF);
-			src_texture_format.format = RD::DATA_FORMAT_R32G32B32A32_SFLOAT;
-			break;
-
-		case Image::FORMAT_RGBAF:
-			src_texture_format.format = RD::DATA_FORMAT_R32G32B32A32_SFLOAT;
-			break;
-
-		case Image::FORMAT_RGBE9995:
-			src_texture_format.format = RD::DATA_FORMAT_E5B9G9R9_UFLOAT_PACK32;
-			break;
-
-		default: {
-			return err;
-		}
+	if (err != OK) {
+		return err;
 	}
 
 	// For the destination format just copy the source format and change the usage bits.
@@ -381,8 +434,21 @@ Error BetsyCompressor::_compress(BetsyFormat p_format, Image *r_img) {
 	dst_texture_format.usage_bits = RD::TEXTURE_USAGE_COLOR_ATTACHMENT_BIT | RD::TEXTURE_USAGE_STORAGE_BIT | RD::TEXTURE_USAGE_CAN_COPY_FROM_BIT | RD::TEXTURE_USAGE_CAN_COPY_TO_BIT | RD::TEXTURE_USAGE_CAN_UPDATE_BIT;
 	dst_texture_format.format = dst_rd_format;
 
+	RD::TextureFormat dst_texture_format_alpha;
+	RD::TextureFormat dst_texture_format_combined;
+
+	if (needs_alpha_block) {
+		dst_texture_format_combined = dst_texture_format;
+		dst_texture_format_combined.format = RD::DATA_FORMAT_R32G32B32A32_UINT;
+
+		dst_texture_format.usage_bits |= RD::TEXTURE_USAGE_SAMPLING_BIT;
+
+		dst_texture_format_alpha = dst_texture_format;
+		dst_texture_format_alpha.format = RD::DATA_FORMAT_R32G32_UINT;
+	}
+
 	// Encoding table setup.
-	if (dest_format == Image::FORMAT_DXT1 && dxt1_encoding_table_buffer.is_null()) {
+	if ((dest_format == Image::FORMAT_DXT1 || dest_format == Image::FORMAT_DXT5) && dxt1_encoding_table_buffer.is_null()) {
 		Vector<uint8_t> data;
 		data.resize(1024 * 4);
 		memcpy(data.ptrw(), dxt1_encoding_table, 1024 * 4);
@@ -421,94 +487,188 @@ Error BetsyCompressor::_compress(BetsyFormat p_format, Image *r_img) {
 
 		// Create the textures on the GPU.
 		RID src_texture = compress_rd->texture_create(src_texture_format, RD::TextureView(), src_images);
-		RID dst_texture = compress_rd->texture_create(dst_texture_format, RD::TextureView());
+		RID dst_texture_primary = compress_rd->texture_create(dst_texture_format, RD::TextureView());
 
-		Vector<RD::Uniform> uniforms;
 		{
+			Vector<RD::Uniform> uniforms;
 			{
-				RD::Uniform u;
-				u.uniform_type = RD::UNIFORM_TYPE_SAMPLER_WITH_TEXTURE;
-				u.binding = 0;
-				u.append_id(src_sampler);
-				u.append_id(src_texture);
-				uniforms.push_back(u);
-			}
-			{
-				RD::Uniform u;
-				u.uniform_type = RD::UNIFORM_TYPE_IMAGE;
-				u.binding = 1;
-				u.append_id(dst_texture);
-				uniforms.push_back(u);
+				{
+					RD::Uniform u;
+					u.uniform_type = RD::UNIFORM_TYPE_SAMPLER_WITH_TEXTURE;
+					u.binding = 0;
+					u.append_id(src_sampler);
+					u.append_id(src_texture);
+					uniforms.push_back(u);
+				}
+				{
+					RD::Uniform u;
+					u.uniform_type = RD::UNIFORM_TYPE_IMAGE;
+					u.binding = 1;
+					u.append_id(dst_texture_primary);
+					uniforms.push_back(u);
+				}
+
+				if (dest_format == Image::FORMAT_DXT1 || dest_format == Image::FORMAT_DXT5) {
+					RD::Uniform u;
+					u.uniform_type = RD::UNIFORM_TYPE_STORAGE_BUFFER;
+					u.binding = 2;
+					u.append_id(dxt1_encoding_table_buffer);
+					uniforms.push_back(u);
+				}
 			}
 
-			if (dest_format == Image::FORMAT_DXT1) {
-				RD::Uniform u;
-				u.uniform_type = RD::UNIFORM_TYPE_STORAGE_BUFFER;
-				u.binding = 2;
-				u.append_id(dxt1_encoding_table_buffer);
-				uniforms.push_back(u);
+			RID uniform_set = compress_rd->uniform_set_create(uniforms, shader.compiled, 0);
+			RD::ComputeListID compute_list = compress_rd->compute_list_begin();
+
+			compress_rd->compute_list_bind_compute_pipeline(compute_list, shader.pipeline);
+			compress_rd->compute_list_bind_uniform_set(compute_list, uniform_set, 0);
+
+			switch (shader_type) {
+				case BETSY_SHADER_BC6: {
+					BC6PushConstant push_constant;
+					push_constant.sizeX = 1.0f / width;
+					push_constant.sizeY = 1.0f / height;
+
+					compress_rd->compute_list_set_push_constant(compute_list, &push_constant, sizeof(BC6PushConstant));
+					compress_rd->compute_list_dispatch(compute_list, get_next_multiple(width, 32) / 32, get_next_multiple(height, 32) / 32, 1);
+				} break;
+
+				case BETSY_SHADER_BC1: {
+					BC1PushConstant push_constant;
+					push_constant.num_refines = 2;
+
+					compress_rd->compute_list_set_push_constant(compute_list, &push_constant, sizeof(BC1PushConstant));
+					compress_rd->compute_list_dispatch(compute_list, get_next_multiple(width, 32) / 32, get_next_multiple(height, 32) / 32, 1);
+				} break;
+
+				case BETSY_SHADER_BC4: {
+					BC4PushConstant push_constant;
+					push_constant.channel_idx = 0;
+
+					compress_rd->compute_list_set_push_constant(compute_list, &push_constant, sizeof(BC4PushConstant));
+					compress_rd->compute_list_dispatch(compute_list, 1, get_next_multiple(width, 16) / 16, get_next_multiple(height, 16) / 16);
+				} break;
+
+				default: {
+				} break;
+			}
+
+			compress_rd->compute_list_end();
+
+			if (!needs_alpha_block) {
+				compress_rd->submit();
+				compress_rd->sync();
 			}
 		}
 
-		RID uniform_set = compress_rd->uniform_set_create(uniforms, shader.compiled, 0);
-		RD::ComputeListID compute_list = compress_rd->compute_list_begin();
+		RID *dst_texture_rid = &dst_texture_primary;
 
-		compress_rd->compute_list_bind_compute_pipeline(compute_list, shader.pipeline);
-		compress_rd->compute_list_bind_uniform_set(compute_list, uniform_set, 0);
+		if (needs_alpha_block) {
+			// Set the destination texture width and size.
+			dst_texture_format_alpha.height = (height + 3) >> 2;
+			dst_texture_format_alpha.width = (width + 3) >> 2;
 
-		switch (dest_format) {
-			case Image::FORMAT_BPTC_RGBFU:
-			case Image::FORMAT_BPTC_RGBF: {
-				BC6PushConstant push_constant;
-				push_constant.sizeX = 1.0f / width;
-				push_constant.sizeY = 1.0f / height;
-				push_constant.padding[0] = 0;
-				push_constant.padding[1] = 0;
+			RID dst_texture_alpha = compress_rd->texture_create(dst_texture_format_alpha, RD::TextureView());
 
-				compress_rd->compute_list_set_push_constant(compute_list, &push_constant, sizeof(BC6PushConstant));
-				compress_rd->compute_list_dispatch(compute_list, get_next_multiple(width, 32) / 32, get_next_multiple(height, 32) / 32, 1);
-			} break;
+			{
+				Vector<RD::Uniform> uniforms;
+				{
+					{
+						RD::Uniform u;
+						u.uniform_type = RD::UNIFORM_TYPE_SAMPLER_WITH_TEXTURE;
+						u.binding = 0;
+						u.append_id(src_sampler);
+						u.append_id(src_texture);
+						uniforms.push_back(u);
+					}
+					{
+						RD::Uniform u;
+						u.uniform_type = RD::UNIFORM_TYPE_IMAGE;
+						u.binding = 1;
+						u.append_id(dst_texture_alpha);
+						uniforms.push_back(u);
+					}
+				}
 
-			case Image::FORMAT_DXT1: {
-				BC1PushConstant push_constant;
-				push_constant.num_refines = 2;
-				push_constant.padding[0] = 0;
-				push_constant.padding[1] = 0;
-				push_constant.padding[2] = 0;
+				RID uniform_set = compress_rd->uniform_set_create(uniforms, secondary_shader.compiled, 0);
+				RD::ComputeListID compute_list = compress_rd->compute_list_begin();
 
-				compress_rd->compute_list_set_push_constant(compute_list, &push_constant, sizeof(BC1PushConstant));
-				compress_rd->compute_list_dispatch(compute_list, get_next_multiple(width, 32) / 32, get_next_multiple(height, 32) / 32, 1);
-			} break;
+				compress_rd->compute_list_bind_compute_pipeline(compute_list, secondary_shader.pipeline);
+				compress_rd->compute_list_bind_uniform_set(compute_list, uniform_set, 0);
 
-			case Image::FORMAT_RGTC_R: {
 				BC4PushConstant push_constant;
-				push_constant.channel_idx = 0;
-				push_constant.padding[0] = 0;
-				push_constant.padding[1] = 0;
-				push_constant.padding[2] = 0;
+				push_constant.channel_idx = dest_format == Image::FORMAT_DXT5 ? 3 : 1;
 
 				compress_rd->compute_list_set_push_constant(compute_list, &push_constant, sizeof(BC4PushConstant));
 				compress_rd->compute_list_dispatch(compute_list, 1, get_next_multiple(width, 16) / 16, get_next_multiple(height, 16) / 16);
-			} break;
 
-			default: {
-			} break;
+				compress_rd->compute_list_end();
+			}
+
+			// Stitching
+
+			// Set the destination texture width and size.
+			dst_texture_format_combined.height = (height + 3) >> 2;
+			dst_texture_format_combined.width = (width + 3) >> 2;
+
+			RID dst_texture_combined = compress_rd->texture_create(dst_texture_format_combined, RD::TextureView());
+
+			{
+				Vector<RD::Uniform> uniforms;
+				{
+					{
+						RD::Uniform u;
+						u.uniform_type = RD::UNIFORM_TYPE_SAMPLER_WITH_TEXTURE;
+						u.binding = 0;
+						u.append_id(src_sampler);
+						u.append_id(dest_format == Image::FORMAT_DXT5 ? dst_texture_alpha : dst_texture_primary);
+						uniforms.push_back(u);
+					}
+					{
+						RD::Uniform u;
+						u.uniform_type = RD::UNIFORM_TYPE_SAMPLER_WITH_TEXTURE;
+						u.binding = 1;
+						u.append_id(src_sampler);
+						u.append_id(dest_format == Image::FORMAT_DXT5 ? dst_texture_primary : dst_texture_alpha);
+						uniforms.push_back(u);
+					}
+					{
+						RD::Uniform u;
+						u.uniform_type = RD::UNIFORM_TYPE_IMAGE;
+						u.binding = 2;
+						u.append_id(dst_texture_combined);
+						uniforms.push_back(u);
+					}
+				}
+
+				RID uniform_set = compress_rd->uniform_set_create(uniforms, stitch_shader.compiled, 0);
+				RD::ComputeListID compute_list = compress_rd->compute_list_begin();
+
+				compress_rd->compute_list_bind_compute_pipeline(compute_list, stitch_shader.pipeline);
+				compress_rd->compute_list_bind_uniform_set(compute_list, uniform_set, 0);
+				compress_rd->compute_list_dispatch(compute_list, get_next_multiple(width, 32) / 32, get_next_multiple(height, 32) / 32, 1);
+
+				compress_rd->compute_list_end();
+
+				compress_rd->submit();
+				compress_rd->sync();
+			}
+
+			dst_texture_rid = &dst_texture_combined;
+
+			compress_rd->free(dst_texture_primary);
+			compress_rd->free(dst_texture_alpha);
 		}
 
-		compress_rd->compute_list_end();
-
-		compress_rd->submit();
-		compress_rd->sync();
-
 		// Copy data from the GPU to the buffer.
-		const Vector<uint8_t> texture_data = compress_rd->texture_get_data(dst_texture, 0);
+		const Vector<uint8_t> texture_data = compress_rd->texture_get_data(*dst_texture_rid, 0);
 		int64_t dst_ofs = Image::get_image_mipmap_offset(r_img->get_width(), r_img->get_height(), dest_format, i);
 
 		memcpy(dst_data_ptr + dst_ofs, texture_data.ptr(), texture_data.size());
 
 		// Free the source and dest texture.
-		compress_rd->free(dst_texture);
 		compress_rd->free(src_texture);
+		compress_rd->free(*dst_texture_rid);
 	}
 
 	src_images.clear();
@@ -516,7 +676,13 @@ Error BetsyCompressor::_compress(BetsyFormat p_format, Image *r_img) {
 	// Set the compressed data to the image.
 	r_img->set_data(r_img->get_width(), r_img->get_height(), r_img->has_mipmaps(), dest_format, dst_data);
 
-	print_verbose(vformat("Betsy: Encoding took %d ms.", OS::get_singleton()->get_ticks_msec() - start_time));
+	print_verbose(
+			vformat("Betsy: Encoding a %dx%d image with %d mipmaps as %s took %d ms.",
+					r_img->get_width(),
+					r_img->get_height(),
+					r_img->get_mipmap_count(),
+					Image::get_format_name(dest_format),
+					OS::get_singleton()->get_ticks_msec() - start_time));
 
 	return OK;
 }
@@ -560,8 +726,17 @@ Error _betsy_compress_s3tc(Image *r_img, Image::UsedChannels p_channels) {
 			result = betsy->compress(BETSY_FORMAT_BC1, r_img);
 			break;
 
+		case Image::USED_CHANNELS_RGBA:
+		case Image::USED_CHANNELS_LA:
+			result = betsy->compress(BETSY_FORMAT_BC3, r_img);
+			break;
+
 		case Image::USED_CHANNELS_R:
 			result = betsy->compress(BETSY_FORMAT_BC4_UNSIGNED, r_img);
+			break;
+
+		case Image::USED_CHANNELS_RG:
+			result = betsy->compress(BETSY_FORMAT_BC5_UNSIGNED, r_img);
 			break;
 
 		default:
