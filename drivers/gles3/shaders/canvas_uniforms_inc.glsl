@@ -48,8 +48,7 @@ layout(std140) uniform CanvasData { //ubo:0
 	uint directional_light_count;
 	float tex_to_sdf;
 	uint pad1;
-
-	uint instance_uniforms_ofs;
+	uint pad2;
 };
 
 #ifndef DISABLE_LIGHTING
