@@ -43,6 +43,42 @@
 static Mutex betsy_mutex;
 static BetsyCompressor *betsy = nullptr;
 
+static const BetsyShaderType FORMAT_TO_TYPE[BETSY_FORMAT_MAX] = {
+	BETSY_SHADER_BC1_STANDARD,
+	BETSY_SHADER_BC1_DITHER,
+	BETSY_SHADER_BC1_STANDARD,
+	BETSY_SHADER_BC4_SIGNED,
+	BETSY_SHADER_BC4_UNSIGNED,
+	BETSY_SHADER_BC4_SIGNED,
+	BETSY_SHADER_BC4_UNSIGNED,
+	BETSY_SHADER_BC6_SIGNED,
+	BETSY_SHADER_BC6_UNSIGNED,
+};
+
+static const RD::DataFormat BETSY_TO_RD_FORMAT[BETSY_FORMAT_MAX] = {
+	RD::DATA_FORMAT_R32G32_UINT,
+	RD::DATA_FORMAT_R32G32_UINT,
+	RD::DATA_FORMAT_R32G32_UINT,
+	RD::DATA_FORMAT_R32G32_UINT,
+	RD::DATA_FORMAT_R32G32_UINT,
+	RD::DATA_FORMAT_R32G32_UINT,
+	RD::DATA_FORMAT_R32G32_UINT,
+	RD::DATA_FORMAT_R32G32B32A32_UINT,
+	RD::DATA_FORMAT_R32G32B32A32_UINT,
+};
+
+static const Image::Format BETSY_TO_IMAGE_FORMAT[BETSY_FORMAT_MAX] = {
+	Image::FORMAT_DXT1,
+	Image::FORMAT_DXT1,
+	Image::FORMAT_DXT5,
+	Image::FORMAT_RGTC_R,
+	Image::FORMAT_RGTC_R,
+	Image::FORMAT_RGTC_RG,
+	Image::FORMAT_RGTC_RG,
+	Image::FORMAT_BPTC_RGBF,
+	Image::FORMAT_BPTC_RGBFU,
+};
+
 void BetsyCompressor::_init() {
 	if (!DisplayServer::can_create_rendering_device()) {
 		return;
@@ -96,6 +132,94 @@ void BetsyCompressor::_init() {
 	}
 
 	src_sampler = compress_rd->sampler_create(src_sampler_state);
+
+	// Initialize RDShaderFiles.
+	{
+		Ref<RDShaderFile> bc1_shader;
+		bc1_shader.instantiate();
+		Error err = bc1_shader->parse_versions_from_text(bc1_shader_glsl);
+
+		if (err != OK) {
+			bc1_shader->print_errors("Betsy BC1 compress shader");
+		}
+
+		// Standard BC1 compression.
+		cached_shaders[BETSY_SHADER_BC1_STANDARD].compiled = compress_rd->shader_create_from_spirv(bc1_shader->get_spirv_stages("standard"));
+		ERR_FAIL_COND(cached_shaders[BETSY_SHADER_BC1_STANDARD].compiled.is_null());
+
+		cached_shaders[BETSY_SHADER_BC1_STANDARD].pipeline = compress_rd->compute_pipeline_create(cached_shaders[BETSY_SHADER_BC1_STANDARD].compiled);
+		ERR_FAIL_COND(cached_shaders[BETSY_SHADER_BC1_STANDARD].pipeline.is_null());
+
+		// Dither BC1 variant. Unused, so comment out for now.
+		//cached_shaders[BETSY_SHADER_BC1_DITHER].compiled = compress_rd->shader_create_from_spirv(bc1_shader->get_spirv_stages("dithered"));
+		//ERR_FAIL_COND(cached_shaders[BETSY_SHADER_BC1_DITHER].compiled.is_null());
+
+		//cached_shaders[BETSY_SHADER_BC1_DITHER].pipeline = compress_rd->compute_pipeline_create(cached_shaders[BETSY_SHADER_BC1_DITHER].compiled);
+		//ERR_FAIL_COND(cached_shaders[BETSY_SHADER_BC1_DITHER].pipeline.is_null());
+	}
+
+	{
+		Ref<RDShaderFile> bc4_shader;
+		bc4_shader.instantiate();
+		Error err = bc4_shader->parse_versions_from_text(bc4_shader_glsl);
+
+		if (err != OK) {
+			bc4_shader->print_errors("Betsy BC4 compress shader");
+		}
+
+		// Signed BC4 compression. Unused, so comment out for now.
+		//cached_shaders[BETSY_SHADER_BC4_SIGNED].compiled = compress_rd->shader_create_from_spirv(bc4_shader->get_spirv_stages("signed"));
+		//ERR_FAIL_COND(cached_shaders[BETSY_SHADER_BC4_SIGNED].compiled.is_null());
+
+		//cached_shaders[BETSY_SHADER_BC4_SIGNED].pipeline = compress_rd->compute_pipeline_create(cached_shaders[BETSY_SHADER_BC4_SIGNED].compiled);
+		//ERR_FAIL_COND(cached_shaders[BETSY_SHADER_BC4_SIGNED].pipeline.is_null());
+
+		// Unsigned BC4 compression.
+		cached_shaders[BETSY_SHADER_BC4_UNSIGNED].compiled = compress_rd->shader_create_from_spirv(bc4_shader->get_spirv_stages("unsigned"));
+		ERR_FAIL_COND(cached_shaders[BETSY_SHADER_BC4_UNSIGNED].compiled.is_null());
+
+		cached_shaders[BETSY_SHADER_BC4_UNSIGNED].pipeline = compress_rd->compute_pipeline_create(cached_shaders[BETSY_SHADER_BC4_UNSIGNED].compiled);
+		ERR_FAIL_COND(cached_shaders[BETSY_SHADER_BC4_UNSIGNED].pipeline.is_null());
+	}
+
+	{
+		Ref<RDShaderFile> bc6h_shader;
+		bc6h_shader.instantiate();
+		Error err = bc6h_shader->parse_versions_from_text(bc6h_shader_glsl);
+
+		if (err != OK) {
+			bc6h_shader->print_errors("Betsy BC6 compress shader");
+		}
+
+		// Signed BC6 compression.
+		cached_shaders[BETSY_SHADER_BC6_SIGNED].compiled = compress_rd->shader_create_from_spirv(bc6h_shader->get_spirv_stages("signed"));
+		ERR_FAIL_COND(cached_shaders[BETSY_SHADER_BC6_SIGNED].compiled.is_null());
+
+		cached_shaders[BETSY_SHADER_BC6_SIGNED].pipeline = compress_rd->compute_pipeline_create(cached_shaders[BETSY_SHADER_BC6_SIGNED].compiled);
+		ERR_FAIL_COND(cached_shaders[BETSY_SHADER_BC6_SIGNED].pipeline.is_null());
+
+		// Unsigned BC6 compression.
+		cached_shaders[BETSY_SHADER_BC6_UNSIGNED].compiled = compress_rd->shader_create_from_spirv(bc6h_shader->get_spirv_stages("unsigned"));
+		ERR_FAIL_COND(cached_shaders[BETSY_SHADER_BC6_UNSIGNED].compiled.is_null());
+
+		cached_shaders[BETSY_SHADER_BC6_UNSIGNED].pipeline = compress_rd->compute_pipeline_create(cached_shaders[BETSY_SHADER_BC6_UNSIGNED].compiled);
+		ERR_FAIL_COND(cached_shaders[BETSY_SHADER_BC6_UNSIGNED].pipeline.is_null());
+	}
+
+	{
+		Ref<RDShaderFile> alpha_stitch_shader;
+		alpha_stitch_shader.instantiate();
+		Error err = alpha_stitch_shader->parse_versions_from_text(alpha_stitch_shader_glsl);
+
+		if (err != OK) {
+			alpha_stitch_shader->print_errors("Betsy alpha stitch shader");
+		}
+		cached_shaders[BETSY_SHADER_ALPHA_STITCH].compiled = compress_rd->shader_create_from_spirv(alpha_stitch_shader->get_spirv_stages());
+		ERR_FAIL_COND(cached_shaders[BETSY_SHADER_ALPHA_STITCH].compiled.is_null());
+
+		cached_shaders[BETSY_SHADER_ALPHA_STITCH].pipeline = compress_rd->compute_pipeline_create(cached_shaders[BETSY_SHADER_ALPHA_STITCH].compiled);
+		ERR_FAIL_COND(cached_shaders[BETSY_SHADER_ALPHA_STITCH].pipeline.is_null());
+	}
 }
 
 void BetsyCompressor::init() {
@@ -130,12 +254,11 @@ void BetsyCompressor::_thread_exit() {
 		compress_rd->free(src_sampler);
 
 		// Clear the shader cache, pipelines will be unreferenced automatically.
-		for (KeyValue<String, BetsyShader> &E : cached_shaders) {
-			if (E.value.compiled.is_valid()) {
-				compress_rd->free(E.value.compiled);
+		for (int i = 0; i < BETSY_SHADER_MAX; i++) {
+			if (cached_shaders[i].compiled.is_valid()) {
+				compress_rd->free(cached_shaders[i].compiled);
 			}
 		}
-		cached_shaders.clear();
 	}
 }
 
@@ -161,22 +284,6 @@ void BetsyCompressor::finish() {
 
 static int get_next_multiple(int n, int m) {
 	return n + (m - (n % m));
-}
-
-static String get_shader_name(BetsyShaderType p_type) {
-	switch (p_type) {
-		case BETSY_SHADER_BC1:
-			return "BC1";
-
-		case BETSY_SHADER_BC4:
-			return "BC4";
-
-		case BETSY_SHADER_BC6:
-			return "BC6";
-
-		default:
-			return "";
-	}
 }
 
 static Error get_src_texture_format(Image *r_img, RD::DataFormat &r_format) {
@@ -254,47 +361,6 @@ static Error get_src_texture_format(Image *r_img, RD::DataFormat &r_format) {
 	return OK;
 }
 
-Error BetsyCompressor::_get_shader(const String &p_name, const String &p_version, const char *p_source, BetsyShader &r_shader) {
-	const String shader_name = p_name + "-" + p_version;
-
-	Error err = OK;
-
-	if (cached_shaders.has(p_name)) {
-		r_shader = cached_shaders[p_name];
-
-	} else {
-		Ref<RDShaderFile> source;
-		source.instantiate();
-
-		err = source->parse_versions_from_text(p_source);
-
-		if (err != OK) {
-			source->print_errors("Betsy compress shader");
-			return err;
-		}
-
-		// Compile the shader, return early if invalid.
-		r_shader.compiled = compress_rd->shader_create_from_spirv(source->get_spirv_stages(p_version));
-		if (r_shader.compiled.is_null()) {
-			return ERR_CANT_CREATE;
-		}
-
-		// Compile the pipeline, return early if invalid.
-		r_shader.pipeline = compress_rd->compute_pipeline_create(r_shader.compiled);
-		if (r_shader.pipeline.is_null()) {
-			return ERR_CANT_CREATE;
-		}
-
-		cached_shaders[shader_name] = r_shader;
-	}
-
-	if (r_shader.compiled.is_null() || r_shader.pipeline.is_null()) {
-		err = ERR_INVALID_DATA;
-	}
-
-	return err;
-}
-
 Error BetsyCompressor::_compress(BetsyFormat p_format, Image *r_img) {
 	uint64_t start_time = OS::get_singleton()->get_ticks_msec();
 
@@ -310,107 +376,24 @@ Error BetsyCompressor::_compress(BetsyFormat p_format, Image *r_img) {
 	Error err = OK;
 
 	// Destination format.
-	Image::Format dest_format = Image::FORMAT_MAX;
-	RD::DataFormat dst_rd_format = RD::DATA_FORMAT_MAX;
+	Image::Format dest_format = BETSY_TO_IMAGE_FORMAT[p_format];
+	RD::DataFormat dst_rd_format = BETSY_TO_RD_FORMAT[p_format];
 
-	BetsyShaderType shader_type = BETSY_SHADER_BC1;
+	BetsyShaderType shader_type = FORMAT_TO_TYPE[p_format];
+	BetsyShader shader = cached_shaders[shader_type];
+	BetsyShader secondary_shader; // The secondary shader is used for alpha blocks. For BC it's BC4U and for ETC it's ETC2_RU (8-bit variant).
+	BetsyShader stitch_shader;
 	bool needs_alpha_block = false;
-	String version = "";
-	const char *shader_source = "";
 
 	switch (p_format) {
-		case BETSY_FORMAT_BC1:
-			shader_type = BETSY_SHADER_BC1;
-			version = "standard";
-			shader_source = bc1_shader_glsl;
-
-			dst_rd_format = RD::DATA_FORMAT_R32G32_UINT;
-			dest_format = Image::FORMAT_DXT1;
-			break;
-
-		case BETSY_FORMAT_BC1_DITHER:
-			shader_type = BETSY_SHADER_BC1;
-			version = "dithered";
-			shader_source = bc1_shader_glsl;
-
-			dst_rd_format = RD::DATA_FORMAT_R32G32_UINT;
-			dest_format = Image::FORMAT_DXT1;
-			break;
-
 		case BETSY_FORMAT_BC3:
-			shader_type = BETSY_SHADER_BC1;
-			version = "standard";
-			shader_source = bc1_shader_glsl;
-			needs_alpha_block = true;
-
-			dst_rd_format = RD::DATA_FORMAT_R32G32_UINT;
-			dest_format = Image::FORMAT_DXT5;
-			break;
-
-		case BETSY_FORMAT_BC4_UNSIGNED:
-			shader_type = BETSY_SHADER_BC4;
-			version = "unsigned";
-			shader_source = bc4_shader_glsl;
-
-			dst_rd_format = RD::DATA_FORMAT_R32G32_UINT;
-			dest_format = Image::FORMAT_RGTC_R;
-			break;
-
 		case BETSY_FORMAT_BC5_UNSIGNED:
-			shader_type = BETSY_SHADER_BC4;
-			version = "unsigned";
-			shader_source = bc4_shader_glsl;
 			needs_alpha_block = true;
-
-			dst_rd_format = RD::DATA_FORMAT_R32G32_UINT;
-			dest_format = Image::FORMAT_RGTC_RG;
+			secondary_shader = cached_shaders[BETSY_SHADER_BC4_UNSIGNED];
+			stitch_shader = cached_shaders[BETSY_SHADER_ALPHA_STITCH];
 			break;
-
-		case BETSY_FORMAT_BC6_SIGNED:
-			shader_type = BETSY_SHADER_BC6;
-			version = "signed";
-			shader_source = bc6h_shader_glsl;
-
-			dst_rd_format = RD::DATA_FORMAT_R32G32B32A32_UINT;
-			dest_format = Image::FORMAT_BPTC_RGBF;
-			break;
-
-		case BETSY_FORMAT_BC6_UNSIGNED:
-			shader_type = BETSY_SHADER_BC6;
-			version = "unsigned";
-			shader_source = bc6h_shader_glsl;
-
-			dst_rd_format = RD::DATA_FORMAT_R32G32B32A32_UINT;
-			dest_format = Image::FORMAT_BPTC_RGBFU;
-			break;
-
 		default:
-			err = ERR_INVALID_PARAMETER;
 			break;
-	}
-
-	BetsyShader shader;
-	err = _get_shader(get_shader_name(shader_type), version, shader_source, shader);
-
-	if (err != OK) {
-		return err;
-	}
-
-	// The secondary shader is used for alpha blocks. For BC it's BC4U and for ETC it's ETC2_RU (8-bit variant).
-	BetsyShader secondary_shader;
-	BetsyShader stitch_shader;
-	if (needs_alpha_block) {
-		err = _get_shader(get_shader_name(BETSY_SHADER_BC4), "unsigned", bc4_shader_glsl, secondary_shader);
-
-		if (err != OK) {
-			return err;
-		}
-
-		err = _get_shader("stitch", "standard", alpha_stitch_shader_glsl, stitch_shader);
-
-		if (err != OK) {
-			return err;
-		}
 	}
 
 	// src_texture format information.
@@ -524,7 +507,8 @@ Error BetsyCompressor::_compress(BetsyFormat p_format, Image *r_img) {
 			compress_rd->compute_list_bind_uniform_set(compute_list, uniform_set, 0);
 
 			switch (shader_type) {
-				case BETSY_SHADER_BC6: {
+				case BETSY_SHADER_BC6_SIGNED:
+				case BETSY_SHADER_BC6_UNSIGNED: {
 					BC6PushConstant push_constant;
 					push_constant.sizeX = 1.0f / width;
 					push_constant.sizeY = 1.0f / height;
@@ -533,7 +517,7 @@ Error BetsyCompressor::_compress(BetsyFormat p_format, Image *r_img) {
 					compress_rd->compute_list_dispatch(compute_list, get_next_multiple(width, 32) / 32, get_next_multiple(height, 32) / 32, 1);
 				} break;
 
-				case BETSY_SHADER_BC1: {
+				case BETSY_SHADER_BC1_STANDARD: {
 					BC1PushConstant push_constant;
 					push_constant.num_refines = 2;
 
@@ -541,7 +525,7 @@ Error BetsyCompressor::_compress(BetsyFormat p_format, Image *r_img) {
 					compress_rd->compute_list_dispatch(compute_list, get_next_multiple(width, 32) / 32, get_next_multiple(height, 32) / 32, 1);
 				} break;
 
-				case BETSY_SHADER_BC4: {
+				case BETSY_SHADER_BC4_UNSIGNED: {
 					BC4PushConstant push_constant;
 					push_constant.channel_idx = 0;
 
