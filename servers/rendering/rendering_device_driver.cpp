@@ -128,7 +128,9 @@ Error RenderingDeviceDriver::_reflect_spirv(VectorView<ShaderStageSPIRVData> p_s
 							continue;
 						} break;
 						case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: {
-							ERR_PRINT("Dynamic storage buffer not supported.");
+							uniform.type = UNIFORM_TYPE_STORAGE_BUFFER_DYNAMIC;
+							need_block_size = true;
+							may_be_writable = true;
 							continue;
 						} break;
 						case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT: {

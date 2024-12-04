@@ -478,6 +478,15 @@ private:
 		RDD::UniformSetID uniform_set;
 		RDD::ShaderID shader;
 		uint32_t set_index = 0;
+		uint32_t offset_count = 0;
+
+		_FORCE_INLINE_ uint32_t *uniform_set_offsets() {
+			return reinterpret_cast<uint32_t *>(&this[1]);
+		}
+
+		_FORCE_INLINE_ const uint32_t *uniform_set_offsets() const {
+			return reinterpret_cast<const uint32_t *>(&this[1]);
+		}
 	};
 
 	struct DrawListBindVertexBuffersInstruction : DrawListInstruction {
@@ -761,7 +770,7 @@ public:
 	void add_draw_list_begin(RDD::RenderPassID p_render_pass, RDD::FramebufferID p_framebuffer, Rect2i p_region, VectorView<AttachmentOperation> p_attachment_operations, VectorView<RDD::RenderPassClearValue> p_attachment_clear_values, bool p_uses_color, bool p_uses_depth, uint32_t p_breadcrumb = 0);
 	void add_draw_list_bind_index_buffer(RDD::BufferID p_buffer, RDD::IndexBufferFormat p_format, uint32_t p_offset);
 	void add_draw_list_bind_pipeline(RDD::PipelineID p_pipeline, BitField<RDD::PipelineStageBits> p_pipeline_stage_bits);
-	void add_draw_list_bind_uniform_set(RDD::ShaderID p_shader, RDD::UniformSetID p_uniform_set, uint32_t set_index);
+	void add_draw_list_bind_uniform_set(RDD::ShaderID p_shader, RDD::UniformSetID p_uniform_set, uint32_t set_index, VectorView<uint32_t> p_uniform_set_offsets = VectorView<uint32_t>());
 	void add_draw_list_bind_vertex_buffers(VectorView<RDD::BufferID> p_vertex_buffers, VectorView<uint64_t> p_vertex_buffer_offsets);
 	void add_draw_list_clear_attachments(VectorView<RDD::AttachmentClear> p_attachments_clear, VectorView<Rect2i> p_attachments_clear_rect);
 	void add_draw_list_draw(uint32_t p_vertex_count, uint32_t p_instance_count);
