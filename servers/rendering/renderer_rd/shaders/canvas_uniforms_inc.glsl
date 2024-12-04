@@ -181,7 +181,7 @@ layout(set = 3, binding = 1) uniform texture2D normal_texture;
 layout(set = 3, binding = 2) uniform texture2D specular_texture;
 layout(set = 3, binding = 3) uniform sampler texture_sampler;
 
-layout(set = 3, binding = 4, std140) uniform DrawData {
-	InstanceData data;
+layout(set = 3, binding = 4, std430) restrict readonly buffer DrawData {
+	InstanceData data[];
 }
 instances;

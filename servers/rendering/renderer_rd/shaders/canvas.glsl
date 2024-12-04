@@ -66,12 +66,12 @@ void main() {
 #endif
 
 #ifdef USE_ATTRIBUTES
-	uint instance_index = 0;
+	uint instance_index = params.base_instance_index;
 #else
-	uint instance_index = 0;
+	uint instance_index = gl_InstanceIndex + params.base_instance_index;
 	instance_index_interp = instance_index;
 #endif // USE_ATTRIBUTES
-	const InstanceData draw_data = instances.data;
+	const InstanceData draw_data = instances.data[instance_index];
 
 #ifdef USE_PRIMITIVE
 
@@ -322,7 +322,7 @@ vec4 light_compute(
 #ifdef USE_NINEPATCH
 
 float map_ninepatch_axis(float pixel, float draw_size, float tex_pixel_size, float margin_begin, float margin_end, int np_repeat, inout int draw_center) {
-	const InstanceData draw_data = instances.data;
+	const InstanceData draw_data = instances.data[instance_index];
 
 	float tex_size = 1.0 / tex_pixel_size;
 
@@ -461,9 +461,9 @@ void main() {
 	vec2 vertex = vertex_interp;
 
 #ifdef USE_ATTRIBUTES
-	const InstanceData draw_data = instances.data;
+	const InstanceData draw_data = instances.data[params.base_instance_index];
 #else
-	const InstanceData draw_data = instances.data;
+	const InstanceData draw_data = instances.data[instance_index];
 #endif // USE_ATTRIBUTES
 
 #if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE)

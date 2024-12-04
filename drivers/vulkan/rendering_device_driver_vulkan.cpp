@@ -3572,13 +3572,13 @@ RDD::ShaderID RenderingDeviceDriverVulkan::shader_create_from_bytecode(const Vec
 				case UNIFORM_TYPE_UNIFORM_BUFFER: {
 					layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 					if ((layout_binding.binding == 4 && i == 3) || (layout_binding.binding == 1 && i == 1)) {
-						layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+						//layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 					}
 				} break;
 				case UNIFORM_TYPE_STORAGE_BUFFER: {
 					layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 					if ((layout_binding.binding == 4 && i == 3) || (layout_binding.binding == 1 && i == 1)) {
-						layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+						//layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
 					}
 				} break;
 				case UNIFORM_TYPE_INPUT_ATTACHMENT: {

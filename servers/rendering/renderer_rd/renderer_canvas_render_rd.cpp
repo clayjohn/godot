@@ -1993,13 +1993,13 @@ void fragment() {
 	}
 
 	{
-		state.max_instances_per_buffer = 64; //uint32_t(GLOBAL_GET("rendering/2d/batching/item_buffer_size"));
+		state.max_instances_per_buffer = uint32_t(GLOBAL_GET("rendering/2d/batching/item_buffer_size"));
 		state.max_instance_buffer_size = state.max_instances_per_buffer * sizeof(InstanceData);
 		state.canvas_instance_batches.reserve(200);
 
 		for (uint32_t i = 0; i < BATCH_DATA_BUFFER_COUNT; i++) {
 			DataBuffer &db = state.canvas_instance_data_buffers[i];
-			db.instance_buffers.push_back(RD::get_singleton()->uniform_buffer_create(state.max_instance_buffer_size));
+			db.instance_buffers.push_back(RD::get_singleton()->storage_buffer_create(state.max_instance_buffer_size));
 		}
 		state.instance_data_array = memnew_arr(InstanceData, state.max_instances_per_buffer);
 	}
@@ -2916,7 +2916,7 @@ void RendererCanvasRenderRD::_render_batch(RD::DrawListID p_draw_list, CanvasSha
 			state.batch_texture_uniforms.write[1] = RD::Uniform(RD::UNIFORM_TYPE_TEXTURE, 1, p_batch->tex_info->normal);
 			state.batch_texture_uniforms.write[2] = RD::Uniform(RD::UNIFORM_TYPE_TEXTURE, 2, p_batch->tex_info->specular);
 			state.batch_texture_uniforms.write[3] = RD::Uniform(RD::UNIFORM_TYPE_SAMPLER, 3, p_batch->tex_info->sampler);
-			state.batch_texture_uniforms.write[4] = RD::Uniform(RD::UNIFORM_TYPE_UNIFORM_BUFFER_DYNAMIC, 4, state.canvas_instance_data_buffers[state.current_data_buffer_index].instance_buffers[p_batch->instance_buffer_index]);
+			state.batch_texture_uniforms.write[4] = RD::Uniform(RD::UNIFORM_TYPE_STORAGE_BUFFER, 4, state.canvas_instance_data_buffers[state.current_data_buffer_index].instance_buffers[p_batch->instance_buffer_index]);
 
 			RID rid = RD::get_singleton()->uniform_set_create(state.batch_texture_uniforms, shader.default_version_rd_shader, BATCH_UNIFORM_SET);
 			ERR_FAIL_COND_MSG(rid.is_null(), "Failed to create uniform set for batch.");
@@ -2926,16 +2926,16 @@ void RendererCanvasRenderRD::_render_batch(RD::DrawListID p_draw_list, CanvasSha
 			RD::get_singleton()->uniform_set_set_invalidation_callback(rid, RendererCanvasRenderRD::_uniform_set_invalidation_callback, (void *)&iter->key);
 		}
 
-		//if (state.current_batch_uniform_set != *uniform_set) {
-		Vector<uint32_t> offsets;
-		offsets.resize_zeroed(1);
-		offsets.write[0] = p_batch->start * sizeof(InstanceData);
-		state.current_batch_uniform_set = *uniform_set;
-		RD::get_singleton()->draw_list_bind_uniform_set(p_draw_list, *uniform_set, BATCH_UNIFORM_SET, offsets);
-		//}
+		if (state.current_batch_uniform_set != *uniform_set) {
+			//Vector<uint32_t> offsets;
+			//offsets.resize_zeroed(1);
+			//offsets.write[0] = p_batch->start * sizeof(InstanceData);
+			state.current_batch_uniform_set = *uniform_set;
+			RD::get_singleton()->draw_list_bind_uniform_set(p_draw_list, *uniform_set, BATCH_UNIFORM_SET);
+		}
 	}
 	PushConstant push_constant;
-	push_constant.base_instance_index = 0;
+	push_constant.base_instance_index = p_batch->start;
 	push_constant.specular_shininess = p_batch->tex_info->specular_shininess;
 	push_constant.batch_flags = p_batch->tex_info->flags | p_batch->flags;
 
@@ -3145,8 +3145,8 @@ void RendererCanvasRenderRD::_add_to_batch(uint32_t &r_index, bool &r_batch_brok
 		r_current_batch = _new_batch(r_batch_broken);
 		r_current_batch->start = 0;
 	} else {
-		r_batch_broken = false; // Force a new batch to be created
-		r_current_batch = _new_batch(r_batch_broken);
+		//r_batch_broken = false; // Force a new batch to be created
+		//r_current_batch = _new_batch(r_batch_broken);
 	}
 }
 
@@ -3159,7 +3159,7 @@ void RendererCanvasRenderRD::_allocate_instance_buffer() {
 	}
 
 	// Allocate a new buffer.
-	RID buf = RD::get_singleton()->uniform_buffer_create(state.max_instance_buffer_size);
+	RID buf = RD::get_singleton()->storage_buffer_create(state.max_instance_buffer_size);
 	state.canvas_instance_data_buffers[state.current_data_buffer_index].instance_buffers.push_back(buf);
 }
 
