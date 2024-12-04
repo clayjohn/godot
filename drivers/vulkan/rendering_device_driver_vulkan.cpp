@@ -3571,6 +3571,9 @@ RDD::ShaderID RenderingDeviceDriverVulkan::shader_create_from_bytecode(const Vec
 				} break;
 				case UNIFORM_TYPE_UNIFORM_BUFFER: {
 					layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+					if ((layout_binding.binding == 4 && i == 3) || (layout_binding.binding == 1 && i == 1)) {
+						layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+					}
 				} break;
 				case UNIFORM_TYPE_STORAGE_BUFFER: {
 					layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -3866,6 +3869,13 @@ VkDescriptorPool RenderingDeviceDriverVulkan::_descriptor_set_pool_find_or_creat
 			curr_vk_size++;
 			vk_sizes_count++;
 		}
+		if (p_key.uniform_type[UNIFORM_TYPE_UNIFORM_BUFFER_DYNAMIC]) {
+			*curr_vk_size = {};
+			curr_vk_size->type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+			curr_vk_size->descriptorCount = p_key.uniform_type[UNIFORM_TYPE_UNIFORM_BUFFER_DYNAMIC] * max_descriptor_sets_per_pool;
+			curr_vk_size++;
+			vk_sizes_count++;
+		}
 		DEV_ASSERT(vk_sizes_count <= UNIFORM_TYPE_MAX);
 	}
 
@@ -4056,9 +4066,19 @@ RDD::UniformSetID RenderingDeviceDriverVulkan::uniform_set_create(VectorView<Bou
 				VkDescriptorBufferInfo *vk_buf_info = ALLOCA_SINGLE(VkDescriptorBufferInfo);
 				*vk_buf_info = {};
 				vk_buf_info->buffer = buf_info->vk_buffer;
-				vk_buf_info->range = 176;
+				vk_buf_info->range = 128;
 
 				vk_writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+				vk_writes[i].pBufferInfo = vk_buf_info;
+			} break;
+			case UNIFORM_TYPE_UNIFORM_BUFFER_DYNAMIC: {
+				const BufferInfo *buf_info = (const BufferInfo *)uniform.ids[0].id;
+				VkDescriptorBufferInfo *vk_buf_info = ALLOCA_SINGLE(VkDescriptorBufferInfo);
+				*vk_buf_info = {};
+				vk_buf_info->buffer = buf_info->vk_buffer;
+				vk_buf_info->range = 128;
+
+				vk_writes[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 				vk_writes[i].pBufferInfo = vk_buf_info;
 			} break;
 			default: {

@@ -124,7 +124,8 @@ Error RenderingDeviceDriver::_reflect_spirv(VectorView<ShaderStageSPIRVData> p_s
 							may_be_writable = true;
 						} break;
 						case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC: {
-							ERR_PRINT("Dynamic uniform buffer not supported.");
+							uniform.type = UNIFORM_TYPE_UNIFORM_BUFFER_DYNAMIC;
+							need_block_size = true;
 							continue;
 						} break;
 						case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: {

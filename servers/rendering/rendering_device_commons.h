@@ -540,6 +540,7 @@ public:
 		UNIFORM_TYPE_STORAGE_BUFFER, // Storage buffer ("buffer" qualifier) like UBO, but supports storage, for compute mostly.
 		UNIFORM_TYPE_INPUT_ATTACHMENT, // Used for sub-pass read/write, for mobile mostly.
 		UNIFORM_TYPE_STORAGE_BUFFER_DYNAMIC,
+		UNIFORM_TYPE_UNIFORM_BUFFER_DYNAMIC,
 		UNIFORM_TYPE_MAX
 	};
 

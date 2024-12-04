@@ -3331,6 +3331,7 @@ RID RenderingDevice::uniform_set_create(const Vector<Uniform> &p_uniforms, RID p
 			case UNIFORM_TYPE_IMAGE_BUFFER: {
 				// Todo.
 			} break;
+			case UNIFORM_TYPE_UNIFORM_BUFFER_DYNAMIC:
 			case UNIFORM_TYPE_UNIFORM_BUFFER: {
 				ERR_FAIL_COND_V_MSG(uniform.get_id_count() != 1, RID(),
 						"Uniform buffer supplied (binding: " + itos(uniform.binding) + ") must provide one ID (" + itos(uniform.get_id_count()) + " provided).");

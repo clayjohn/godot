@@ -37,7 +37,7 @@ struct InstanceData {
 
 #endif
 	vec2 color_texture_pixel_size;
-	uint lights[4];
+	uvec4 lights;
 };
 
 //1 means enabled, 2+ means trails in use
@@ -181,7 +181,7 @@ layout(set = 3, binding = 1) uniform texture2D normal_texture;
 layout(set = 3, binding = 2) uniform texture2D specular_texture;
 layout(set = 3, binding = 3) uniform sampler texture_sampler;
 
-layout(set = 3, binding = 4, std430) restrict readonly buffer DrawData {
+layout(set = 3, binding = 4, std140) uniform DrawData {
 	InstanceData data;
 }
 instances;

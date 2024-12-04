@@ -68,7 +68,7 @@ void main() {
 #ifdef USE_ATTRIBUTES
 	uint instance_index = 0;
 #else
-	uint instance_index = gl_InstanceIndex;
+	uint instance_index = 0;
 	instance_index_interp = instance_index;
 #endif // USE_ATTRIBUTES
 	const InstanceData draw_data = instances.data;
