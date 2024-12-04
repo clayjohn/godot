@@ -280,7 +280,7 @@ struct InstanceData {
 };
 
 layout(set = 1, binding = 1, std430) buffer restrict readonly InstanceDataBuffer {
-	InstanceData data[];
+	InstanceData data;
 }
 instances;
 

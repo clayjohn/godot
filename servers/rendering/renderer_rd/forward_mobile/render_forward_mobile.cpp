@@ -408,7 +408,7 @@ RID RenderForwardMobile::_setup_render_pass_uniform_set(RenderListType p_render_
 	{
 		RD::Uniform u;
 		u.binding = 1;
-		u.uniform_type = RD::UNIFORM_TYPE_STORAGE_BUFFER;
+		u.uniform_type = RD::UNIFORM_TYPE_STORAGE_BUFFER_DYNAMIC;
 		RID instance_buffer = scene_state.instance_buffer[p_render_list];
 		if (instance_buffer == RID()) {
 			instance_buffer = scene_shader.default_vec4_xform_buffer; // Any buffer will do since its not used.
@@ -2149,6 +2149,10 @@ void RenderForwardMobile::_render_list_template(RenderingDevice::DrawListID p_dr
 
 		SceneState::PushConstant push_constant;
 		push_constant.base_index = i + p_params->element_offset;
+		Vector<uint32_t> offsets;
+		offsets.resize_zeroed(1);
+		offsets.write[0] = (i + p_params->element_offset) * sizeof(SceneState::InstanceData);
+		RD::get_singleton()->draw_list_bind_uniform_set(draw_list, p_params->render_pass_uniform_set, RENDER_PASS_UNIFORM_SET, offsets);
 
 		if constexpr (p_pass_mode == PASS_MODE_DEPTH_MATERIAL) {
 			push_constant.uv_offset[0] = p_params->uv_offset.x;

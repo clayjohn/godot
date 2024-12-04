@@ -3574,7 +3574,7 @@ RDD::ShaderID RenderingDeviceDriverVulkan::shader_create_from_bytecode(const Vec
 				} break;
 				case UNIFORM_TYPE_STORAGE_BUFFER: {
 					layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-					if (layout_binding.binding == 4 && i == 3) {
+					if ((layout_binding.binding == 4 && i == 3) || (layout_binding.binding == 1 && i == 1)) {
 						layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
 					}
 				} break;
@@ -4056,7 +4056,7 @@ RDD::UniformSetID RenderingDeviceDriverVulkan::uniform_set_create(VectorView<Bou
 				VkDescriptorBufferInfo *vk_buf_info = ALLOCA_SINGLE(VkDescriptorBufferInfo);
 				*vk_buf_info = {};
 				vk_buf_info->buffer = buf_info->vk_buffer;
-				vk_buf_info->range = 1280;
+				vk_buf_info->range = 176;
 
 				vk_writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
 				vk_writes[i].pBufferInfo = vk_buf_info;

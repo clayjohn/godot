@@ -191,7 +191,7 @@ void main() {
 	color_interp = color_attrib;
 #endif
 
-	mat4 model_matrix = instances.data[draw_call.instance_index].transform;
+	mat4 model_matrix = instances.data.transform;
 	mat4 inv_view_matrix = scene_data.inv_view_matrix;
 
 #ifdef USE_DOUBLE_PRECISION
@@ -206,7 +206,7 @@ void main() {
 #endif
 
 	mat3 model_normal_matrix;
-	if (bool(instances.data[draw_call.instance_index].flags & INSTANCE_FLAGS_NON_UNIFORM_SCALE)) {
+	if (bool(instances.data.flags & INSTANCE_FLAGS_NON_UNIFORM_SCALE)) {
 		model_normal_matrix = transpose(inverse(mat3(model_matrix)));
 	} else {
 		model_normal_matrix = mat3(model_matrix);
@@ -219,7 +219,7 @@ void main() {
 		//multimesh, instances are for it
 
 #ifdef USE_PARTICLE_TRAILS
-		uint trail_size = (instances.data[draw_call.instance_index].flags >> INSTANCE_FLAGS_PARTICLE_TRAIL_SHIFT) & INSTANCE_FLAGS_PARTICLE_TRAIL_MASK;
+		uint trail_size = (instances.data.flags >> INSTANCE_FLAGS_PARTICLE_TRAIL_SHIFT) & INSTANCE_FLAGS_PARTICLE_TRAIL_MASK;
 		uint stride = 3 + 1 + 1; //particles always uses this format
 
 		uint offset = trail_size * stride * gl_InstanceIndex;
@@ -300,7 +300,7 @@ void main() {
 		model_normal_matrix = model_normal_matrix * mat3(matrix);
 	}
 
-	vec3 vertex = vertex_angle_attrib.xyz * instances.data[draw_call.instance_index].compressed_aabb_size_pad.xyz + instances.data[draw_call.instance_index].compressed_aabb_position_pad.xyz;
+	vec3 vertex = vertex_angle_attrib.xyz * instances.data.compressed_aabb_size_pad.xyz + instances.data.compressed_aabb_position_pad.xyz;
 #ifdef NORMAL_USED
 	vec3 normal = oct_to_vec3(axis_tangent_attrib.xy * 2.0 - 1.0);
 #endif
@@ -335,7 +335,7 @@ void main() {
 	uv2_interp = uv2_attrib;
 #endif
 
-	vec4 uv_scale = instances.data[draw_call.instance_index].uv_scale;
+	vec4 uv_scale = instances.data.uv_scale;
 
 	if (uv_scale != vec4(0.0)) { // Compression enabled
 #ifdef UV_USED
@@ -453,13 +453,13 @@ void main() {
 	diffuse_light_interp = vec4(0.0);
 	specular_light_interp = vec4(0.0);
 
-	uvec2 omni_light_indices = instances.data[draw_call.instance_index].omni_lights;
+	uvec2 omni_light_indices = instances.data.omni_lights;
 	for (uint i = 0; i < sc_omni_lights(); i++) {
 		uint light_index = (i > 3) ? ((omni_light_indices.y >> ((i - 4) * 8)) & 0xFF) : ((omni_light_indices.x >> (i * 8)) & 0xFF);
 		light_process_omni_vertex(light_index, vertex, view, normal_interp, roughness, diffuse_light_interp.rgb, specular_light_interp.rgb);
 	}
 
-	uvec2 spot_light_indices = instances.data[draw_call.instance_index].spot_lights;
+	uvec2 spot_light_indices = instances.data.spot_lights;
 	for (uint i = 0; i < sc_spot_lights(); i++) {
 		uint light_index = (i > 3) ? ((spot_light_indices.y >> ((i - 4) * 8)) & 0xFF) : ((spot_light_indices.x >> (i * 8)) & 0xFF);
 		light_process_spot_vertex(light_index, vertex, view, normal_interp, roughness, diffuse_light_interp.rgb, specular_light_interp.rgb);
@@ -471,11 +471,11 @@ void main() {
 		vec3 directional_specular = vec3(0.0);
 
 		for (uint i = 0; i < sc_directional_lights(); i++) {
-			if (!bool(directional_lights.data[i].mask & instances.data[draw_call.instance_index].layer_mask)) {
+			if (!bool(directional_lights.data[i].mask & instances.data.layer_mask)) {
 				continue; // Not masked, skip.
 			}
 
-			if (directional_lights.data[i].bake_mode == LIGHT_BAKE_STATIC && bool(instances.data[draw_call.instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
+			if (directional_lights.data[i].bake_mode == LIGHT_BAKE_STATIC && bool(instances.data.flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
 				continue; // Statically baked light and object uses lightmap, skip.
 			}
 			if (i == 0) {
@@ -936,7 +936,7 @@ void main() {
 #endif // ALPHA_ANTIALIASING_EDGE_USED
 
 	mat4 inv_view_matrix = scene_data.inv_view_matrix;
-	mat4 read_model_matrix = instances.data[draw_call.instance_index].transform;
+	mat4 read_model_matrix = instances.data.transform;
 #ifdef USE_DOUBLE_PRECISION
 	read_model_matrix[0][3] = 0.0;
 	read_model_matrix[1][3] = 0.0;
@@ -951,7 +951,7 @@ void main() {
 #endif //LIGHT_VERTEX_USED
 
 	mat3 model_normal_matrix;
-	if (bool(instances.data[draw_call.instance_index].flags & INSTANCE_FLAGS_NON_UNIFORM_SCALE)) {
+	if (bool(instances.data.flags & INSTANCE_FLAGS_NON_UNIFORM_SCALE)) {
 		model_normal_matrix = transpose(inverse(mat3(read_model_matrix)));
 	} else {
 		model_normal_matrix = mat3(read_model_matrix);
@@ -1076,10 +1076,10 @@ void main() {
 	vec3 vertex_ddx = dFdx(vertex);
 	vec3 vertex_ddy = dFdy(vertex);
 
-	uvec2 decal_indices = instances.data[draw_call.instance_index].decals;
+	uvec2 decal_indices = instances.data.decals;
 	for (uint i = 0; i < sc_decals(); i++) {
 		uint decal_index = (i > 3) ? ((decal_indices.y >> ((i - 4) * 8)) & 0xFF) : ((decal_indices.x >> (i * 8)) & 0xFF);
-		if (!bool(decals.data[decal_index].mask & instances.data[draw_call.instance_index].layer_mask)) {
+		if (!bool(decals.data[decal_index].mask & instances.data.layer_mask)) {
 			continue; //not masked
 		}
 
@@ -1275,8 +1275,8 @@ void main() {
 #ifdef USE_LIGHTMAP
 
 	//lightmap
-	if (bool(instances.data[draw_call.instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP_CAPTURE)) { //has lightmap capture
-		uint index = instances.data[draw_call.instance_index].gi_offset;
+	if (bool(instances.data.flags & INSTANCE_FLAGS_USE_LIGHTMAP_CAPTURE)) { //has lightmap capture
+		uint index = instances.data.gi_offset;
 
 		vec3 wnormal = mat3(scene_data.inv_view_matrix) * normal;
 		const float c1 = 0.429043;
@@ -1296,12 +1296,12 @@ void main() {
 								 2.0 * c2 * lightmap_captures.data[index].sh[2].rgb * wnormal.z) *
 				scene_data.emissive_exposure_normalization;
 
-	} else if (bool(instances.data[draw_call.instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) { // has actual lightmap
-		bool uses_sh = bool(instances.data[draw_call.instance_index].flags & INSTANCE_FLAGS_USE_SH_LIGHTMAP);
-		uint ofs = instances.data[draw_call.instance_index].gi_offset & 0xFFFF;
-		uint slice = instances.data[draw_call.instance_index].gi_offset >> 16;
+	} else if (bool(instances.data.flags & INSTANCE_FLAGS_USE_LIGHTMAP)) { // has actual lightmap
+		bool uses_sh = bool(instances.data.flags & INSTANCE_FLAGS_USE_SH_LIGHTMAP);
+		uint ofs = instances.data.gi_offset & 0xFFFF;
+		uint slice = instances.data.gi_offset >> 16;
 		vec3 uvw;
-		uvw.xy = uv2 * instances.data[draw_call.instance_index].lightmap_uv_scale.zw + instances.data[draw_call.instance_index].lightmap_uv_scale.xy;
+		uvw.xy = uv2 * instances.data.lightmap_uv_scale.zw + instances.data.lightmap_uv_scale.xy;
 		uvw.z = float(slice);
 
 		if (uses_sh) {
@@ -1361,7 +1361,7 @@ void main() {
 		vec3 ref_vec = normalize(reflect(-view, bent_normal));
 		ref_vec = mix(ref_vec, bent_normal, roughness * roughness);
 
-		uvec2 reflection_indices = instances.data[draw_call.instance_index].reflection_probes;
+		uvec2 reflection_indices = instances.data.reflection_probes;
 		for (uint i = 0; i < sc_reflection_probes(); i++) {
 			uint reflection_index = (i > 3) ? ((reflection_indices.y >> ((i - 4) * 8)) & 0xFF) : ((reflection_indices.x >> (i * 8)) & 0xFF);
 			reflection_process(reflection_index, vertex, ref_vec, bent_normal, roughness, ambient_light, specular_light, ambient_accum, reflection_accum);
@@ -1441,7 +1441,7 @@ void main() {
 		for (uint i = 0; i < sc_directional_lights(); i++) {
 #endif
 
-			if (!bool(directional_lights.data[i].mask & instances.data[draw_call.instance_index].layer_mask)) {
+			if (!bool(directional_lights.data[i].mask & instances.data.layer_mask)) {
 				continue; //not masked
 			}
 
@@ -1554,7 +1554,7 @@ void main() {
 
 #ifndef USE_VERTEX_LIGHTING
 		for (uint i = 0; i < sc_directional_lights(); i++) {
-			if (!bool(directional_lights.data[i].mask & instances.data[draw_call.instance_index].layer_mask)) {
+			if (!bool(directional_lights.data[i].mask & instances.data.layer_mask)) {
 				continue; //not masked
 			}
 
@@ -1619,7 +1619,7 @@ void main() {
 	} //directional light
 
 #ifndef USE_VERTEX_LIGHTING
-	uvec2 omni_indices = instances.data[draw_call.instance_index].omni_lights;
+	uvec2 omni_indices = instances.data.omni_lights;
 	for (uint i = 0; i < sc_omni_lights(); i++) {
 		uint light_index = (i > 3) ? ((omni_indices.y >> ((i - 4) * 8)) & 0xFF) : ((omni_indices.x >> (i * 8)) & 0xFF);
 
@@ -1653,7 +1653,7 @@ void main() {
 				diffuse_light, specular_light);
 	}
 
-	uvec2 spot_indices = instances.data[draw_call.instance_index].spot_lights;
+	uvec2 spot_indices = instances.data.spot_lights;
 	for (uint i = 0; i < sc_spot_lights(); i++) {
 		uint light_index = (i > 3) ? ((spot_indices.y >> ((i - 4) * 8)) & 0xFF) : ((spot_indices.x >> (i * 8)) & 0xFF);
 
