@@ -272,22 +272,34 @@ vec3 agx_default_contrast_approx(vec3 x) {
 	return +15.5 * x4 * x2 - 40.14 * x4 * x + 31.96 * x4 - 6.868 * x2 * x + 0.4298 * x2 + 0.1191 * x - 0.00232;
 }
 
-vec3 agx(vec3 val) {
-	const mat3 agx_mat = transpose(mat3(
-			0.544813, 0.37379614, 0.08139087,
-			0.14041554, 0.75414325, 0.10544122,
-			0.0888119, 0.17888511, 0.73230299));
+const mat3 LINEAR_REC2020_TO_LINEAR_SRGB = mat3(
+		vec3(1.6605, -0.1246, -0.0182),
+		vec3(-0.5876, 1.1329, -0.1006),
+		vec3(-0.0728, -0.0083, 1.1187));
 
-	// AgX does not provide whitepoint adjustments, so hardcode it to a value that matches the Blender appearance closely.
-	const float white = 16.016004;
+const mat3 LINEAR_SRGB_TO_LINEAR_REC2020 = mat3(
+		vec3(0.6274, 0.0691, 0.0164),
+		vec3(0.3293, 0.9195, 0.0880),
+		vec3(0.0433, 0.0113, 0.8956));
+
+vec3 agx(vec3 val) {
+	const mat3 agx_mat = mat3(
+			0.856627153315983, 0.137318972929847, 0.11189821299995,
+			0.0951212405381588, 0.761241990602591, 0.0767994186031903,
+			0.0482516061458583, 0.101439036467562, 0.811302368396859);
 
 	const float min_ev = -12.47393;
-	const float max_ev = log2(white);
+	const float max_ev = 4.026069;
+
+	// Do AGX in rec2020 to match Blender.
+	val = LINEAR_SRGB_TO_LINEAR_REC2020 * val;
+	val = max(val, vec3(0.0));
 
 	// Input transform (inset).
 	val = agx_mat * val;
 
 	// Log2 space encoding.
+	val = max(val, 1e-10);
 	val = clamp(log2(val), min_ev, max_ev);
 	val = (val - min_ev) / (max_ev - min_ev);
 
@@ -298,42 +310,24 @@ vec3 agx(vec3 val) {
 }
 
 vec3 agx_eotf(vec3 val) {
-	const mat3 agx_mat_inv = transpose(mat3(
-			1.96489403, -0.85600791, -0.10888612,
-			-0.29930908, 1.32639189, -0.02708281,
-			-0.16435644, -0.2382074, 1.40256385));
+	const mat3 agx_mat_out = inverse(mat3(
+			0.899796955911611, 0.11142098895748, 0.11142098895748,
+			0.0871996192028351, 0.875575586156966, 0.0871996192028349,
+			0.013003424885555, 0.0130034248855548, 0.801379391839686));
 
-	// Inverse input transform (outset).
-	val = agx_mat_inv * val;
+	val = agx_mat_out * val;
 
-	// sRGB IEC 61966-2-1 2.2 Exponent Reference EOTF Display
-	// NOTE: We're linearizing the output here. Comment/adjust when
-	// *not* using a sRGB render target.
+	// Convert back to linear so we can escape rec 2020.
 	val = pow(val, vec3(2.2));
+
+	val = LINEAR_REC2020_TO_LINEAR_SRGB * val;
 
 	return val;
 }
 
-vec3 agx_look_punchy(vec3 val) {
-	const vec3 lw = vec3(0.2126, 0.7152, 0.0722);
-	float luma = dot(val, lw);
-
-	vec3 offset = vec3(0.0);
-	vec3 slope = vec3(1.0);
-	vec3 power = vec3(1.35, 1.35, 1.35);
-	float sat = 1.4;
-
-	// ASC CDL.
-	val = pow(val * slope + offset, power);
-	return luma + sat * (val - luma);
-}
-
 // Adapted from https://iolite-engine.com/blog_posts/minimal_agx_implementation
-vec3 tonemap_agx(vec3 color, bool punchy) {
+vec3 tonemap_agx(vec3 color) {
 	color = agx(color);
-	if (punchy) {
-		color = agx_look_punchy(color);
-	}
 	color = agx_eotf(color);
 	return color;
 }
@@ -350,7 +344,6 @@ vec3 linear_to_srgb(vec3 color) {
 #define TONEMAPPER_FILMIC 2
 #define TONEMAPPER_ACES 3
 #define TONEMAPPER_AGX 4
-#define TONEMAPPER_AGX_PUNCHY 5
 
 vec3 apply_tonemapping(vec3 color, float white) { // inputs are LINEAR
 	// Ensure color values passed to tonemappers are positive.
@@ -363,10 +356,8 @@ vec3 apply_tonemapping(vec3 color, float white) { // inputs are LINEAR
 		return tonemap_filmic(max(vec3(0.0f), color), white);
 	} else if (params.tonemapper == TONEMAPPER_ACES) {
 		return tonemap_aces(max(vec3(0.0f), color), white);
-	} else if (params.tonemapper == TONEMAPPER_AGX) {
-		return tonemap_agx(max(vec3(0.0f), color), false);
-	} else { // TONEMAPPER_AGX_PUNCHY
-		return tonemap_agx(max(vec3(0.0f), color), true);
+	} else { // TONEMAPPER_AGX
+		return tonemap_agx(color);
 	}
 }
 
