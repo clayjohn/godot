@@ -1470,9 +1470,9 @@ void AnimationNodeBlendTree::add_node(const StringName &p_name, Ref<AnimationNod
 }
 
 Ref<AnimationNode> AnimationNodeBlendTree::get_node(const StringName &p_name) const {
-	ERR_FAIL_COND_V(!nodes.has(p_name), Ref<AnimationNode>());
-
-	return nodes[p_name].node;
+	const Node *node = nodes.getptr(p_name);
+	ERR_FAIL_COND_V(!node, Ref<AnimationNode>());
+	return node->node;
 }
 
 StringName AnimationNodeBlendTree::get_node_name(const Ref<AnimationNode> &p_node) const {
@@ -1486,13 +1486,15 @@ StringName AnimationNodeBlendTree::get_node_name(const Ref<AnimationNode> &p_nod
 }
 
 void AnimationNodeBlendTree::set_node_position(const StringName &p_node, const Vector2 &p_position) {
-	ERR_FAIL_COND(!nodes.has(p_node));
-	nodes[p_node].position = p_position;
+	Node *node = nodes.getptr(p_node);
+	ERR_FAIL_COND(!node);
+	node->position = p_position;
 }
 
 Vector2 AnimationNodeBlendTree::get_node_position(const StringName &p_node) const {
-	ERR_FAIL_COND_V(!nodes.has(p_node), Vector2());
-	return nodes[p_node].position;
+	const Node *node = nodes.getptr(p_node);
+	ERR_FAIL_COND_V(!node, Vector2());
+	return node->position;
 }
 
 void AnimationNodeBlendTree::get_child_nodes(List<ChildNode> *r_child_nodes) {
@@ -1515,8 +1517,9 @@ bool AnimationNodeBlendTree::has_node(const StringName &p_name) const {
 }
 
 Vector<StringName> AnimationNodeBlendTree::get_node_connection_array(const StringName &p_name) const {
-	ERR_FAIL_COND_V(!nodes.has(p_name), Vector<StringName>());
-	return nodes[p_name].connections;
+	const Node *node = nodes.getptr(p_name);
+	ERR_FAIL_COND_V(!node, Vector<StringName>());
+	return node->connections;
 }
 
 void AnimationNodeBlendTree::remove_node(const StringName &p_name) {

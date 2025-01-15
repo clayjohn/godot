@@ -400,9 +400,9 @@ void AnimationMixer::get_animation_list(List<StringName> *p_animations) const {
 }
 
 Ref<Animation> AnimationMixer::get_animation(const StringName &p_name) const {
-	ERR_FAIL_COND_V_MSG(!animation_set.has(p_name), Ref<Animation>(), vformat("Animation not found: \"%s\".", p_name));
-	const AnimationData &anim_data = animation_set[p_name];
-	return anim_data.animation;
+	const AnimationData *anim_data = animation_set.getptr(p_name);
+	ERR_FAIL_COND_V_MSG(!anim_data, Ref<Animation>(), vformat("Animation not found: \"%s\".", p_name));
+	return anim_data->animation;
 }
 
 bool AnimationMixer::has_animation(const StringName &p_name) const {
@@ -660,11 +660,7 @@ bool AnimationMixer::_update_caches() {
 	const String mixer_name = "AnimationMixer";
 #endif
 
-	Ref<Animation> reset_anim;
-	bool has_reset_anim = has_animation(SceneStringName(RESET));
-	if (has_reset_anim) {
-		reset_anim = get_animation(SceneStringName(RESET));
-	}
+	Ref<Animation> reset_anim = get_animation(SceneStringName(RESET));
 	for (const StringName &E : sname_list) {
 		Ref<Animation> anim = get_animation(E);
 		for (int i = 0; i < anim->get_track_count(); i++) {
@@ -730,7 +726,7 @@ bool AnimationMixer::_update_caches() {
 						track_value->is_variant_interpolatable = Animation::is_variant_interpolatable(track_value->init_value);
 
 						// If there is a Reset Animation, it takes precedence by overwriting.
-						if (has_reset_anim) {
+						if (reset_anim.is_valid()) {
 							int rt = reset_anim->find_track(path, track_src_type);
 							if (rt >= 0) {
 								if (is_value) {
@@ -805,7 +801,7 @@ bool AnimationMixer::_update_caches() {
 						}
 
 						// For non Skeleton3D bone animation.
-						if (has_reset_anim && !has_rest) {
+						if (reset_anim.is_valid() && !has_rest) {
 							int rt = reset_anim->find_track(path, track_src_type);
 							if (rt >= 0 && reset_anim->track_get_key_count(rt) > 0) {
 								switch (track_src_type) {
@@ -851,7 +847,7 @@ bool AnimationMixer::_update_caches() {
 						track_bshape->object_id = mesh_3d->get_instance_id();
 						track = track_bshape;
 
-						if (has_reset_anim) {
+						if (reset_anim.is_valid()) {
 							int rt = reset_anim->find_track(path, track_src_type);
 							if (rt >= 0 && reset_anim->track_get_key_count(rt) > 0) {
 								track_bshape->init_value = reset_anim->track_get_key_value(rt, 0);
@@ -1791,10 +1787,11 @@ void AnimationMixer::_blend_process(double p_delta, bool p_update_only) {
 						}
 						double pos = a->track_get_key_time(i, idx);
 						StringName anim_name = a->animation_track_get_key_animation(i, idx);
-						if (String(anim_name) == "[stop]" || !player2->has_animation(anim_name)) {
+						Ref<Animation> anim = player2->get_animation(anim_name);
+						if (String(anim_name) == "[stop]" || anim.is_null()) {
 							continue;
 						}
-						Ref<Animation> anim = player2->get_animation(anim_name);
+
 						double at_anim_pos = start;
 						switch (anim->get_loop_mode()) {
 							case Animation::LOOP_NONE: {
@@ -2035,11 +2032,12 @@ void AnimationMixer::_call_object(ObjectID p_object_id, const StringName &p_meth
 }
 
 void AnimationMixer::make_animation_instance(const StringName &p_name, const PlaybackInfo p_playback_info) {
-	ERR_FAIL_COND(!has_animation(p_name));
+	const AnimationData *anim_data = animation_set.getptr(p_name);
+	ERR_FAIL_COND(!anim_data);
 
 	AnimationData ad;
 	ad.name = p_name;
-	ad.animation = get_animation(p_name);
+	ad.animation = anim_data->animation;
 	ad.animation_library = find_animation_library(ad.animation);
 
 	AnimationInstance ai;
