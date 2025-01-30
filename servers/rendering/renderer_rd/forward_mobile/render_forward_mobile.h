@@ -338,8 +338,8 @@ protected:
 	/* setup */
 	virtual void _update_shader_quality_settings() override;
 
-	virtual float _render_buffers_get_luminance_multiplier() override;
-	virtual RD::DataFormat _render_buffers_get_color_format() override;
+	virtual float _render_buffers_get_luminance_multiplier(bool use_hdr) override;
+	virtual RD::DataFormat _render_buffers_get_color_format(bool use_hdr) override;
 	virtual bool _render_buffers_can_be_storage() override;
 
 	virtual RID _render_buffers_get_normal_texture(Ref<RenderSceneBuffersRD> p_render_buffers) override;

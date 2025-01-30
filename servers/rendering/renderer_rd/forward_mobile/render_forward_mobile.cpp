@@ -363,19 +363,18 @@ void RenderForwardMobile::update() {
 
 /* Render functions */
 
-float RenderForwardMobile::_render_buffers_get_luminance_multiplier() {
-	// On mobile renderer we need to multiply source colors by 2 due to using a UNORM buffer
-	// and multiplying by the output color during 3D rendering by 0.5
-	return 2.0;
+float RenderForwardMobile::_render_buffers_get_luminance_multiplier(bool use_hdr) {
+	// On mobile renderer when not using HDR2D we need to scale HDR values by two
+	// to fit 0-2 range color values into a UNORM buffer.
+	return use_hdr ? 1.0 : 2.0;
 }
 
-RD::DataFormat RenderForwardMobile::_render_buffers_get_color_format() {
-	// Using 32bit buffers enables AFBC on mobile devices which should have a definite performance improvement (MALI G710 and newer support this on 64bit RTs)
-	return RD::DATA_FORMAT_A2B10G10R10_UNORM_PACK32;
+RD::DataFormat RenderForwardMobile::_render_buffers_get_color_format(bool use_hdr) {
+	// Prioritize using 32bit buffers on mobile to take advantage of framebuffer compression when possible.
+	return use_hdr ? RD::DATA_FORMAT_R16G16B16A16_SFLOAT : RD::DATA_FORMAT_A2B10G10R10_UNORM_PACK32;
 }
 
 bool RenderForwardMobile::_render_buffers_can_be_storage() {
-	// Using 32bit buffers enables AFBC on mobile devices which should have a definite performance improvement (MALI G710 and newer support this on 64bit RTs)
 	// Doesn't support storage
 	return false;
 }

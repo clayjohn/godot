@@ -929,11 +929,11 @@ RID RendererSceneRenderRD::render_buffers_get_default_voxel_gi_buffer() {
 	return gi.default_voxel_gi_buffer;
 }
 
-float RendererSceneRenderRD::_render_buffers_get_luminance_multiplier() {
+float RendererSceneRenderRD::_render_buffers_get_luminance_multiplier(bool use_hdr) {
 	return 1.0;
 }
 
-RD::DataFormat RendererSceneRenderRD::_render_buffers_get_color_format() {
+RD::DataFormat RendererSceneRenderRD::_render_buffers_get_color_format(bool use_hdr) {
 	return RD::DATA_FORMAT_R16G16B16A16_SFLOAT;
 }
 

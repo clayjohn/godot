@@ -152,6 +152,8 @@ void RenderSceneBuffersRD::configure(const RenderSceneBuffersConfiguration *p_co
 	RendererRD::TextureStorage *texture_storage = RendererRD::TextureStorage::get_singleton();
 
 	render_target = p_config->get_render_target();
+	// Will return LDR when not using HDR2D. Not good.
+	base_data_format = texture_storage->render_target_get_color_format(texture_storage->render_target_is_using_hdr(render_target), false);
 	target_size = p_config->get_target_size();
 	internal_size = p_config->get_internal_size();
 	view_count = p_config->get_view_count();
