@@ -4233,7 +4233,7 @@ RID TextureStorage::render_target_get_vrs_texture(RID p_render_target) const {
 
 RD::DataFormat TextureStorage::render_target_get_color_format(bool p_use_hdr, bool p_srgb) {
 	if (p_use_hdr) {
-		return RendererSceneRenderRD::get_singleton()->_render_buffers_get_color_format();
+		return RD::DATA_FORMAT_R16G16B16A16_SFLOAT;
 	} else {
 		return p_srgb ? RD::DATA_FORMAT_R8G8B8A8_SRGB : RD::DATA_FORMAT_R8G8B8A8_UNORM;
 	}
