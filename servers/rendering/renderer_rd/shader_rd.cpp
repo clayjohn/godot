@@ -291,7 +291,7 @@ void ShaderRD::_compile_variant(uint32_t p_variant, CompileData p_data) {
 		}
 	}
 
-	if (!is_compute && build_ok) {
+	if (!is_compute && build_ok && !ignore_fragment) {
 		//fragment stage
 		current_stage = RD::SHADER_STAGE_FRAGMENT;
 
@@ -612,7 +612,7 @@ void ShaderRD::_compile_ensure_finished(Version *p_version) {
 	}
 }
 
-void ShaderRD::version_set_code(RID p_version, const HashMap<String, String> &p_code, const String &p_uniforms, const String &p_vertex_globals, const String &p_fragment_globals, const Vector<String> &p_custom_defines) {
+void ShaderRD::version_set_code(RID p_version, const HashMap<String, String> &p_code, const String &p_uniforms, const String &p_vertex_globals, const String &p_fragment_globals, const Vector<String> &p_custom_defines, bool p_ignore_fragment) {
 	ERR_FAIL_COND(is_compute);
 
 	Version *version = version_owner.get_or_null(p_version);
@@ -620,6 +620,7 @@ void ShaderRD::version_set_code(RID p_version, const HashMap<String, String> &p_
 
 	_compile_ensure_finished(version);
 
+	version->ignore_fragment = p_ignore_fragment;
 	version->vertex_globals = p_vertex_globals.utf8();
 	version->fragment_globals = p_fragment_globals.utf8();
 	version->uniforms = p_uniforms.utf8();
