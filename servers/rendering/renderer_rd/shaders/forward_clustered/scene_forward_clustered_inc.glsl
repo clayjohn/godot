@@ -38,15 +38,17 @@ layout(push_constant, std430) uniform DrawCall {
 	uint multimesh_motion_vectors_current_offset;
 	uint multimesh_motion_vectors_previous_offset;
 #ifdef UBERSHADER
+	uint pad_soft_shadows;
 	uint sc_packed_0;
-	uint sc_packed_1;
-	uint sc_packed_2;
 	uint uc_packed_0;
+	uint uv_padding;
 #endif
 }
 draw_call;
 
 /* Specialization Constants */
+// SOft shadow settings are always spec constants since they don't change dynamically.
+layout(constant_id = 0) const uint soft_shadow_samples_packed = 0;
 
 #ifdef UBERSHADER
 
@@ -59,10 +61,6 @@ uint sc_packed_0() {
 	return draw_call.sc_packed_0;
 }
 
-uint sc_packed_1() {
-	return draw_call.sc_packed_1;
-}
-
 uint uc_cull_mode() {
 	return (draw_call.uc_packed_0 >> 0) & 3U;
 }
@@ -70,15 +68,10 @@ uint uc_cull_mode() {
 #else
 
 // Pull the constants from the pipeline's specialization constants.
-layout(constant_id = 0) const uint pso_sc_packed_0 = 0;
-layout(constant_id = 1) const uint pso_sc_packed_1 = 0;
+layout(constant_id = 1) const uint pso_sc_packed_0 = 0;
 
 uint sc_packed_0() {
 	return pso_sc_packed_0;
-}
-
-uint sc_packed_1() {
-	return pso_sc_packed_1;
 }
 
 #endif
@@ -116,35 +109,35 @@ bool sc_use_lightmap_bicubic_filter() {
 }
 
 uint sc_soft_shadow_samples() {
-	return (sc_packed_0() >> 8) & 63U;
+	return (soft_shadow_samples_packed >> 0) & 63U;
 }
 
 uint sc_penumbra_shadow_samples() {
-	return (sc_packed_0() >> 14) & 63U;
+	return (soft_shadow_samples_packed >> 6) & 63U;
 }
 
 uint sc_directional_soft_shadow_samples() {
-	return (sc_packed_0() >> 20) & 63U;
+	return (soft_shadow_samples_packed >> 12) & 63U;
 }
 
 uint sc_directional_penumbra_shadow_samples() {
-	return (sc_packed_0() >> 26) & 63U;
+	return (soft_shadow_samples_packed >> 18) & 63U;
 }
 
 bool sc_multimesh() {
-	return ((sc_packed_1() >> 0) & 1U) != 0;
+	return ((sc_packed_0() >> 8) & 1U) != 0;
 }
 
 bool sc_multimesh_format_2d() {
-	return ((sc_packed_1() >> 1) & 1U) != 0;
+	return ((sc_packed_0() >> 9) & 1U) != 0;
 }
 
 bool sc_multimesh_has_color() {
-	return ((sc_packed_1() >> 2) & 1U) != 0;
+	return ((sc_packed_0() >> 10) & 1U) != 0;
 }
 
 bool sc_multimesh_has_custom_data() {
-	return ((sc_packed_1() >> 3) & 1U) != 0;
+	return ((sc_packed_0() >> 11) & 1U) != 0;
 }
 
 float sc_luminance_multiplier() {

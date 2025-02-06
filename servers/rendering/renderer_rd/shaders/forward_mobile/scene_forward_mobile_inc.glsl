@@ -21,10 +21,10 @@ layout(push_constant, std430) uniform DrawCall {
 	uint instance_index;
 	uint pad;
 #ifdef UBERSHADER
+	uint pad_soft_shadows;
 	uint sc_packed_0;
 	uint sc_packed_1;
-	uint sc_packed_2;
-	float sc_packed_3;
+	float sc_packed_2;
 	uint uc_packed_0;
 	uint uc_padding_1;
 	uint uc_padding_2;
@@ -34,6 +34,10 @@ layout(push_constant, std430) uniform DrawCall {
 draw_call;
 
 /* Specialization Constants */
+
+// These are all set by project settings. They will cause a recompilation if they
+// are changed.
+layout(constant_id = 0) const uint soft_shadow_samples_packed = 0;
 
 #ifdef UBERSHADER
 
@@ -50,12 +54,8 @@ uint sc_packed_1() {
 	return draw_call.sc_packed_1;
 }
 
-uint sc_packed_2() {
+float sc_packed_2() {
 	return draw_call.sc_packed_2;
-}
-
-float sc_packed_3() {
-	return draw_call.sc_packed_3;
 }
 
 uint uc_cull_mode() {
@@ -65,10 +65,9 @@ uint uc_cull_mode() {
 #else
 
 // Pull the constants from the pipeline's specialization constants.
-layout(constant_id = 0) const uint pso_sc_packed_0 = 0;
-layout(constant_id = 1) const uint pso_sc_packed_1 = 0;
-layout(constant_id = 2) const uint pso_sc_packed_2 = 0;
-layout(constant_id = 3) const float pso_sc_packed_3 = 2.0;
+layout(constant_id = 1) const uint pso_sc_packed_0 = 0;
+layout(constant_id = 2) const uint pso_sc_packed_1 = 0;
+layout(constant_id = 3) const float pso_sc_packed_2 = 2.0;
 
 uint sc_packed_0() {
 	return pso_sc_packed_0;
@@ -78,12 +77,8 @@ uint sc_packed_1() {
 	return pso_sc_packed_1;
 }
 
-uint sc_packed_2() {
+float sc_packed_2() {
 	return pso_sc_packed_2;
-}
-
-float sc_packed_3() {
-	return pso_sc_packed_3;
 }
 
 #endif
@@ -161,47 +156,48 @@ bool sc_scene_roughness_limiter_enabled() {
 }
 
 uint sc_soft_shadow_samples() {
-	return (sc_packed_0() >> 20) & 63U;
+	return (soft_shadow_samples_packed >> 0) & 63U;
 }
 
 uint sc_penumbra_shadow_samples() {
-	return (sc_packed_0() >> 26) & 63U;
+	return (soft_shadow_samples_packed >> 6) & 63U;
 }
 
 uint sc_directional_soft_shadow_samples() {
-	return (sc_packed_1() >> 0) & 63U;
+	return (soft_shadow_samples_packed >> 12) & 63U;
 }
 
 uint sc_directional_penumbra_shadow_samples() {
-	return (sc_packed_1() >> 6) & 63U;
+	return (soft_shadow_samples_packed >> 18) & 63U;
 }
 
 uint sc_omni_lights() {
-	return (sc_packed_1() >> 12) & 15U;
+	return (sc_packed_0() >> 20) & 15U;
 }
 
 uint sc_spot_lights() {
-	return (sc_packed_1() >> 16) & 15U;
+	return (sc_packed_0() >> 24) & 15U;
 }
 
 uint sc_reflection_probes() {
-	return (sc_packed_1() >> 20) & 15U;
+	return (sc_packed_0() >> 28) & 15U;
 }
 
 uint sc_directional_lights() {
-	return (sc_packed_1() >> 24) & 15U;
+	return (sc_packed_1() >> 0) & 15U;
 }
 
 uint sc_decals() {
-	return (sc_packed_1() >> 28) & 15U;
+	return (sc_packed_1() >> 4) & 15U;
 }
 
 bool sc_directional_light_blend_split(uint i) {
-	return ((sc_packed_2() >> i) & 1U) != 0;
+	const uint sc = (sc_packed_1() >> 8) & 255U;
+	return ((sc >> i) & 1U) != 0;
 }
 
 float sc_luminance_multiplier() {
-	return sc_packed_3();
+	return sc_packed_2();
 }
 
 /* Set 0: Base Pass (never changes) */

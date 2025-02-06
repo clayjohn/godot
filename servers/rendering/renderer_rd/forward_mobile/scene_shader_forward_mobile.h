@@ -59,6 +59,19 @@ public:
 
 	struct ShaderSpecialization {
 		union {
+			uint32_t soft_shadow_samples_packed;
+
+			struct {
+				uint32_t soft_shadow_samples : 6;
+				uint32_t penumbra_shadow_samples : 6;
+
+				uint32_t directional_soft_shadow_samples : 6;
+				uint32_t directional_penumbra_shadow_samples : 6;
+				uint32_t padding_0 : 8;
+			};
+		};
+
+		union {
 			uint32_t packed_0;
 
 			struct {
@@ -80,9 +93,10 @@ public:
 				uint32_t scene_use_ambient_cubemap : 1;
 				uint32_t scene_use_reflection_cubemap : 1;
 				uint32_t scene_roughness_limiter_enabled : 1;
-				uint32_t padding_0 : 2;
-				uint32_t soft_shadow_samples : 6;
-				uint32_t penumbra_shadow_samples : 6;
+				uint32_t padding_1 : 2;
+				uint32_t omni_lights : 4;
+				uint32_t spot_lights : 4;
+				uint32_t reflection_probes : 4;
 			};
 		};
 
@@ -90,27 +104,15 @@ public:
 			uint32_t packed_1;
 
 			struct {
-				uint32_t directional_soft_shadow_samples : 6;
-				uint32_t directional_penumbra_shadow_samples : 6;
-				uint32_t omni_lights : 4;
-				uint32_t spot_lights : 4;
-				uint32_t reflection_probes : 4;
 				uint32_t directional_lights : 4;
 				uint32_t decals : 4;
-			};
-		};
-
-		union {
-			uint32_t packed_2;
-
-			struct {
 				uint32_t directional_light_blend_splits : 8;
-				uint32_t padding_1 : 24;
+				uint32_t padding_2 : 16;
 			};
 		};
 
 		union {
-			float packed_3;
+			float packed_2;
 			float luminance_multiplier;
 		};
 	};
@@ -171,9 +173,10 @@ public:
 				h = hash_murmur3_one_32(framebuffer_format_id, h);
 				h = hash_murmur3_one_32(cull_mode, h);
 				h = hash_murmur3_one_32(primitive_type, h);
+				h = hash_murmur3_one_32(shader_specialization.soft_shadow_samples_packed, h);
 				h = hash_murmur3_one_32(shader_specialization.packed_0, h);
-				h = hash_murmur3_one_float(shader_specialization.packed_1, h);
-				h = hash_murmur3_one_32(shader_specialization.packed_2, h);
+				h = hash_murmur3_one_32(shader_specialization.packed_1, h);
+				h = hash_murmur3_one_float(shader_specialization.packed_2, h);
 				h = hash_murmur3_one_32(version, h);
 				h = hash_murmur3_one_32(render_pass, h);
 				h = hash_murmur3_one_32(wireframe, h);

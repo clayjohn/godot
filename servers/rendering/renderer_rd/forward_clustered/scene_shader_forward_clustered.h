@@ -100,6 +100,18 @@ public:
 
 	struct ShaderSpecialization {
 		union {
+			uint32_t soft_shadow_samples_packed;
+
+			struct {
+				uint32_t soft_shadow_samples : 6;
+				uint32_t penumbra_shadow_samples : 6;
+
+				uint32_t directional_soft_shadow_samples : 6;
+				uint32_t directional_penumbra_shadow_samples : 6;
+				uint32_t padding_0 : 8;
+			};
+		};
+		union {
 			uint32_t packed_0;
 
 			struct {
@@ -111,25 +123,13 @@ public:
 				uint32_t projector_use_mipmaps : 1;
 				uint32_t use_depth_fog : 1;
 				uint32_t use_lightmap_bicubic_filter : 1;
-				uint32_t soft_shadow_samples : 6;
-				uint32_t penumbra_shadow_samples : 6;
-				uint32_t directional_soft_shadow_samples : 6;
-				uint32_t directional_penumbra_shadow_samples : 6;
-			};
-		};
-
-		union {
-			uint32_t packed_1;
-
-			struct {
 				uint32_t multimesh : 1;
 				uint32_t multimesh_format_2d : 1;
 				uint32_t multimesh_has_color : 1;
 				uint32_t multimesh_has_custom_data : 1;
+				uint32_t padding_1 : 20;
 			};
 		};
-
-		uint32_t packed_2;
 	};
 
 	struct UbershaderConstants {
@@ -140,6 +140,7 @@ public:
 				uint32_t cull_mode : 2;
 			};
 		};
+		uint32_t padding_1;
 	};
 
 	struct ShaderData : public RendererRD::MaterialStorage::ShaderData {
@@ -186,9 +187,8 @@ public:
 				h = hash_murmur3_one_32(primitive_type, h);
 				h = hash_murmur3_one_32(version, h);
 				h = hash_murmur3_one_32(color_pass_flags, h);
+				h = hash_murmur3_one_32(shader_specialization.soft_shadow_samples_packed, h);
 				h = hash_murmur3_one_32(shader_specialization.packed_0, h);
-				h = hash_murmur3_one_32(shader_specialization.packed_1, h);
-				h = hash_murmur3_one_32(shader_specialization.packed_2, h);
 				h = hash_murmur3_one_32(wireframe, h);
 				h = hash_murmur3_one_32(ubershader, h);
 				return hash_fmix32(h);

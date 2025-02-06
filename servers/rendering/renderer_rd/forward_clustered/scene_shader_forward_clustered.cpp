@@ -377,12 +377,12 @@ void SceneShaderForwardClustered::ShaderData::_create_pipeline(PipelineKey p_pip
 	Vector<RD::PipelineSpecializationConstant> specialization_constants;
 	RD::PipelineSpecializationConstant sc;
 	sc.constant_id = 0;
-	sc.int_value = p_pipeline_key.shader_specialization.packed_0;
+	sc.int_value = p_pipeline_key.shader_specialization.soft_shadow_samples_packed;
 	sc.type = RD::PIPELINE_SPECIALIZATION_CONSTANT_TYPE_INT;
 	specialization_constants.push_back(sc);
 
 	sc.constant_id = 1;
-	sc.int_value = p_pipeline_key.shader_specialization.packed_1;
+	sc.int_value = p_pipeline_key.shader_specialization.packed_0;
 	specialization_constants.push_back(sc);
 
 	RID shader_rid = get_shader_variant(p_pipeline_key.version, p_pipeline_key.color_pass_flags, p_pipeline_key.ubershader);
