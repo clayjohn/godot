@@ -2316,7 +2316,7 @@ void RenderForwardMobile::_render_list_template(RenderingDevice::DrawListID p_dr
 			pipeline_key.vertex_format_id = vertex_format;
 
 			if (pipeline_key.ubershader) {
-				pipeline_key.shader_specialization = {};
+				pipeline_key.shader_specialization = scene_shader.default_specialization;
 				pipeline_key.cull_mode = RD::POLYGON_CULL_DISABLED;
 			} else {
 				pipeline_key.shader_specialization = pipeline_specialization;

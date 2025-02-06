@@ -24,7 +24,7 @@ layout(push_constant, std430) uniform DrawCall {
 	uint pad_soft_shadows;
 	uint sc_packed_0;
 	uint sc_packed_1;
-	float sc_packed_2;
+	float pad_packed_2;
 	uint uc_packed_0;
 	uint uc_padding_1;
 	uint uc_padding_2;
@@ -38,6 +38,7 @@ draw_call;
 // These are all set by project settings. They will cause a recompilation if they
 // are changed.
 layout(constant_id = 0) const uint soft_shadow_samples_packed = 0;
+layout(constant_id = 1) const float pso_luminance_multiplier = 2.0;
 
 #ifdef UBERSHADER
 
@@ -54,10 +55,6 @@ uint sc_packed_1() {
 	return draw_call.sc_packed_1;
 }
 
-float sc_packed_2() {
-	return draw_call.sc_packed_2;
-}
-
 uint uc_cull_mode() {
 	return (draw_call.uc_packed_0 >> 0) & 3U;
 }
@@ -65,9 +62,8 @@ uint uc_cull_mode() {
 #else
 
 // Pull the constants from the pipeline's specialization constants.
-layout(constant_id = 1) const uint pso_sc_packed_0 = 0;
-layout(constant_id = 2) const uint pso_sc_packed_1 = 0;
-layout(constant_id = 3) const float pso_sc_packed_2 = 2.0;
+layout(constant_id = 2) const uint pso_sc_packed_0 = 0;
+layout(constant_id = 3) const uint pso_sc_packed_1 = 0;
 
 uint sc_packed_0() {
 	return pso_sc_packed_0;
@@ -75,10 +71,6 @@ uint sc_packed_0() {
 
 uint sc_packed_1() {
 	return pso_sc_packed_1;
-}
-
-float sc_packed_2() {
-	return pso_sc_packed_2;
 }
 
 #endif
@@ -96,11 +88,11 @@ bool sc_use_directional_soft_shadows() {
 }
 
 bool sc_decal_use_mipmaps() {
-	return ((sc_packed_0() >> 3) & 1U) != 0;
+	return ((soft_shadow_samples_packed >> 25) & 1U) != 0;
 }
 
 bool sc_projector_use_mipmaps() {
-	return ((sc_packed_0() >> 4) & 1U) != 0;
+	return ((soft_shadow_samples_packed >> 26) & 1U) != 0;
 }
 
 bool sc_disable_fog() {
@@ -124,7 +116,7 @@ bool sc_use_fog_height_density() {
 }
 
 bool sc_use_lightmap_bicubic_filter() {
-	return ((sc_packed_0() >> 10) & 1U) != 0;
+	return ((soft_shadow_samples_packed >> 27) & 1U) != 0;
 }
 
 bool sc_multimesh() {
@@ -197,7 +189,7 @@ bool sc_directional_light_blend_split(uint i) {
 }
 
 float sc_luminance_multiplier() {
-	return sc_packed_2();
+	return pso_luminance_multiplier;
 }
 
 /* Set 0: Base Pass (never changes) */

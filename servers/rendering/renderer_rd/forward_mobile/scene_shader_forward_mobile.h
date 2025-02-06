@@ -67,8 +67,16 @@ public:
 
 				uint32_t directional_soft_shadow_samples : 6;
 				uint32_t directional_penumbra_shadow_samples : 6;
-				uint32_t padding_0 : 8;
+				uint32_t decal_use_mipmaps : 1;
+				uint32_t projector_use_mipmaps : 1;
+				uint32_t use_lightmap_bicubic_filter : 1;
+				uint32_t padding_0 : 5;
 			};
+		};
+
+		union {
+			float packed_2;
+			float luminance_multiplier;
 		};
 
 		union {
@@ -78,14 +86,14 @@ public:
 				uint32_t use_light_projector : 1;
 				uint32_t use_light_soft_shadows : 1;
 				uint32_t use_directional_soft_shadows : 1;
-				uint32_t decal_use_mipmaps : 1;
-				uint32_t projector_use_mipmaps : 1;
+				uint32_t pad_decal_use_mipmaps : 1;
+				uint32_t pad_projector_use_mipmaps : 1;
 				uint32_t disable_fog : 1;
 				uint32_t use_depth_fog : 1;
 				uint32_t use_fog_aerial_perspective : 1;
 				uint32_t use_fog_sun_scatter : 1;
 				uint32_t use_fog_height_density : 1;
-				uint32_t use_lightmap_bicubic_filter : 1;
+				uint32_t pad_use_lightmap_bicubic_filter : 1;
 				uint32_t multimesh : 1;
 				uint32_t multimesh_format_2d : 1;
 				uint32_t multimesh_has_color : 1;
@@ -109,11 +117,6 @@ public:
 				uint32_t directional_light_blend_splits : 8;
 				uint32_t padding_2 : 16;
 			};
-		};
-
-		union {
-			float packed_2;
-			float luminance_multiplier;
 		};
 	};
 
