@@ -87,7 +87,7 @@ private:
 		}
 
 		for (WorkerThreadPool::TaskID task_id : tasks_to_wait) {
-			WorkerThreadPool::get_singleton()->wait_for_task_completion(task_id);
+			WorkerThreadPool::get_named_pool(SNAME("ShaderCompilationPool"))->wait_for_task_completion(task_id);
 		}
 	}
 
@@ -140,7 +140,7 @@ public:
 #endif
 
 		// Queue a background compilation task.
-		WorkerThreadPool::TaskID task_id = WorkerThreadPool::get_singleton()->add_template_task(creation_object, creation_function, p_key, p_high_priority, "PipelineCompilation");
+		WorkerThreadPool::TaskID task_id = WorkerThreadPool::get_named_pool(SNAME("ShaderCompilationPool"))->add_template_task(creation_object, creation_function, p_key, p_high_priority, "PipelineCompilation");
 		compilation_tasks.insert(p_key_hash, task_id);
 	}
 
@@ -163,7 +163,7 @@ public:
 		}
 
 		if (task_id_to_wait != WorkerThreadPool::INVALID_TASK_ID) {
-			WorkerThreadPool::get_singleton()->wait_for_task_completion(task_id_to_wait);
+			WorkerThreadPool::get_named_pool(SNAME("ShaderCompilationPool"))->wait_for_task_completion(task_id_to_wait);
 		}
 	}
 
