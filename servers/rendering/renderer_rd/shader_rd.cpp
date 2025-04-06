@@ -39,6 +39,8 @@
 
 #define ENABLE_SHADER_CACHE 1
 
+Mutex ShaderRD::shader_mutex;
+
 void ShaderRD::_add_stage(const char *p_code, StageType p_stage_type) {
 	Vector<String> lines = String(p_code).split("\n");
 
@@ -167,6 +169,7 @@ void ShaderRD::setup(const char *p_vertex_code, const char *p_fragment_code, con
 }
 
 RID ShaderRD::version_create() {
+	MutexLock lock(shader_mutex);
 	//initialize() was never called
 	ERR_FAIL_COND_V(group_to_variant_map.is_empty(), RID());
 
@@ -191,6 +194,7 @@ void ShaderRD::_initialize_version(Version *p_version) {
 }
 
 void ShaderRD::_clear_version(Version *p_version) {
+	MutexLock lock(shader_mutex);
 	_compile_ensure_finished(p_version);
 
 	// Clear versions if they exist.
@@ -351,6 +355,7 @@ void ShaderRD::_compile_variant(uint32_t p_variant, CompileData p_data) {
 }
 
 RS::ShaderNativeSourceCode ShaderRD::version_get_native_source_code(RID p_version) {
+	MutexLock lock(shader_mutex);
 	Version *version = version_owner.get_or_null(p_version);
 	RS::ShaderNativeSourceCode source_code;
 	ERR_FAIL_NULL_V(version, source_code);
@@ -580,6 +585,7 @@ void ShaderRD::_compile_version_end(Version *p_version, int p_group) {
 	}
 
 	if (!all_valid) {
+		MutexLock lock(variant_set_mutex);
 		// Clear versions if they exist.
 		for (int i = 0; i < variant_defines.size(); i++) {
 			if (!variants_enabled[i] || !group_enabled[variant_defines[i].group]) {
@@ -611,6 +617,7 @@ void ShaderRD::_compile_ensure_finished(Version *p_version) {
 }
 
 void ShaderRD::version_set_code(RID p_version, const HashMap<String, String> &p_code, const String &p_uniforms, const String &p_vertex_globals, const String &p_fragment_globals, const Vector<String> &p_custom_defines) {
+	MutexLock lock(shader_mutex);
 	ERR_FAIL_COND(is_compute);
 
 	Version *version = version_owner.get_or_null(p_version);
@@ -646,6 +653,7 @@ void ShaderRD::version_set_code(RID p_version, const HashMap<String, String> &p_
 }
 
 void ShaderRD::version_set_compute_code(RID p_version, const HashMap<String, String> &p_code, const String &p_uniforms, const String &p_compute_globals, const Vector<String> &p_custom_defines) {
+	MutexLock lock(shader_mutex);
 	ERR_FAIL_COND(!is_compute);
 
 	Version *version = version_owner.get_or_null(p_version);
@@ -681,6 +689,7 @@ void ShaderRD::version_set_compute_code(RID p_version, const HashMap<String, Str
 }
 
 bool ShaderRD::version_is_valid(RID p_version) {
+	MutexLock lock(shader_mutex);
 	Version *version = version_owner.get_or_null(p_version);
 	ERR_FAIL_NULL_V(version, false);
 
@@ -701,6 +710,7 @@ bool ShaderRD::version_is_valid(RID p_version) {
 }
 
 bool ShaderRD::version_free(RID p_version) {
+	MutexLock lock(shader_mutex);
 	if (version_owner.owns(p_version)) {
 		Version *version = version_owner.get_or_null(p_version);
 		_clear_version(version);
@@ -724,6 +734,7 @@ bool ShaderRD::is_variant_enabled(int p_variant) const {
 }
 
 void ShaderRD::enable_group(int p_group) {
+	MutexLock lock(shader_mutex);
 	ERR_FAIL_INDEX(p_group, group_enabled.size());
 
 	if (group_enabled[p_group]) {

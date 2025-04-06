@@ -52,6 +52,7 @@ public:
 	};
 
 private:
+	static Mutex shader_mutex;
 	//versions
 	CharString general_defines;
 	Vector<VariantDefine> variant_defines;
@@ -162,6 +163,7 @@ public:
 	void version_set_compute_code(RID p_version, const HashMap<String, String> &p_code, const String &p_uniforms, const String &p_compute_globals, const Vector<String> &p_custom_defines);
 
 	_FORCE_INLINE_ RID version_get_shader(RID p_version, int p_variant) {
+		MutexLock lock(shader_mutex);
 		ERR_FAIL_INDEX_V(p_variant, variant_defines.size(), RID());
 		ERR_FAIL_COND_V(!variants_enabled[p_variant], RID());
 

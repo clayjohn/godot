@@ -2142,7 +2142,9 @@ void MaterialStorage::_update_queued_materials() {
 		bool uniforms_changed = false;
 
 		if (material->data) {
+			lock.temp_unlock();
 			uniforms_changed = material->data->update_parameters(material->params, material->uniform_dirty, material->texture_dirty);
+			lock.temp_relock();
 		}
 		material->texture_dirty = false;
 		material->uniform_dirty = false;
