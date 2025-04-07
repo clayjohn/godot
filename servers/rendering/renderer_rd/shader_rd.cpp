@@ -190,7 +190,7 @@ void ShaderRD::_initialize_version(Version *p_version) {
 	p_version->group_compilation_tasks.resize_zeroed(group_enabled.size());
 }
 
-void ShaderRD::_clear_version(Version *p_version) {
+void ShaderRD::_clear_version(Version *p_version, MutexLock<Mutex> *p_lock) {
 	_compile_ensure_finished(p_version);
 
 	// Clear versions if they exist.
@@ -554,17 +554,30 @@ void ShaderRD::_compile_version_start(Version *p_version, int p_group) {
 	compile_data.version = p_version;
 	compile_data.group = p_group;
 
+	MutexLock lock(group_task_mutex);
 	WorkerThreadPool::GroupID group_task = WorkerThreadPool::get_named_pool(SNAME("ShaderCompilationPool"))->add_template_group_task(this, &ShaderRD::_compile_variant, compile_data, group_to_variant_map[p_group].size(), -1, true, SNAME("ShaderCompilation"));
 	p_version->group_compilation_tasks.write[p_group] = group_task;
 }
 
-void ShaderRD::_compile_version_end(Version *p_version, int p_group) {
-	if (p_version->group_compilation_tasks.size() <= p_group || p_version->group_compilation_tasks[p_group] == 0) {
-		return;
+void ShaderRD::_compile_version_end(Version *p_version, int p_group, MutexLock<Mutex> *p_mutex) {
+	if (p_mutex) {
+		p_mutex->temp_unlock();
 	}
-	WorkerThreadPool::GroupID group_task = p_version->group_compilation_tasks[p_group];
-	WorkerThreadPool::get_named_pool(SNAME("ShaderCompilationPool"))->wait_for_group_task_completion(group_task);
-	p_version->group_compilation_tasks.write[p_group] = 0;
+	{
+		MutexLock lock(group_task_mutex);
+		if (p_version->group_compilation_tasks.size() <= p_group || p_version->group_compilation_tasks[p_group] == 0) {
+			if (p_mutex) {
+				p_mutex->temp_relock();
+			}
+			return;
+		}
+		WorkerThreadPool::GroupID group_task = p_version->group_compilation_tasks[p_group];
+		WorkerThreadPool::get_named_pool(SNAME("ShaderCompilationPool"))->wait_for_group_task_completion(group_task);
+		p_version->group_compilation_tasks.write[p_group] = 0;
+	}
+	if (p_mutex) {
+		p_mutex->temp_relock();
+	}
 
 	bool all_valid = true;
 
@@ -603,14 +616,14 @@ void ShaderRD::_compile_version_end(Version *p_version, int p_group) {
 	p_version->valid = true;
 }
 
-void ShaderRD::_compile_ensure_finished(Version *p_version) {
+void ShaderRD::_compile_ensure_finished(Version *p_version, MutexLock<Mutex> *p_mutex) {
 	// Wait for compilation of existing groups if necessary.
 	for (int i = 0; i < group_enabled.size(); i++) {
-		_compile_version_end(p_version, i);
+		_compile_version_end(p_version, i, p_mutex);
 	}
 }
 
-void ShaderRD::version_set_code(RID p_version, const HashMap<String, String> &p_code, const String &p_uniforms, const String &p_vertex_globals, const String &p_fragment_globals, const Vector<String> &p_custom_defines) {
+void ShaderRD::version_set_code(RID p_version, const HashMap<String, String> &p_code, const String &p_uniforms, const String &p_vertex_globals, const String &p_fragment_globals, const Vector<String> &p_custom_defines, MutexLock<Mutex> *p_lock) {
 	ERR_FAIL_COND(is_compute);
 
 	Version *version = version_owner.get_or_null(p_version);
@@ -645,7 +658,7 @@ void ShaderRD::version_set_code(RID p_version, const HashMap<String, String> &p_
 	}
 }
 
-void ShaderRD::version_set_compute_code(RID p_version, const HashMap<String, String> &p_code, const String &p_uniforms, const String &p_compute_globals, const Vector<String> &p_custom_defines) {
+void ShaderRD::version_set_compute_code(RID p_version, const HashMap<String, String> &p_code, const String &p_uniforms, const String &p_compute_globals, const Vector<String> &p_custom_defines, MutexLock<Mutex> *p_lock) {
 	ERR_FAIL_COND(!is_compute);
 
 	Version *version = version_owner.get_or_null(p_version);
@@ -680,7 +693,7 @@ void ShaderRD::version_set_compute_code(RID p_version, const HashMap<String, Str
 	}
 }
 
-bool ShaderRD::version_is_valid(RID p_version) {
+bool ShaderRD::version_is_valid(RID p_version, MutexLock<Mutex> *p_lock) {
 	Version *version = version_owner.get_or_null(p_version);
 	ERR_FAIL_NULL_V(version, false);
 
@@ -695,15 +708,15 @@ bool ShaderRD::version_is_valid(RID p_version) {
 		}
 	}
 
-	_compile_ensure_finished(version);
+	_compile_ensure_finished(version, p_lock);
 
 	return version->valid;
 }
 
-bool ShaderRD::version_free(RID p_version) {
+bool ShaderRD::version_free(RID p_version, MutexLock<Mutex> *p_lock) {
 	if (version_owner.owns(p_version)) {
 		Version *version = version_owner.get_or_null(p_version);
-		_clear_version(version);
+		_clear_version(version, p_lock);
 		version_owner.free(p_version);
 	} else {
 		return false;

@@ -80,6 +80,7 @@ private:
 	};
 
 	Mutex variant_set_mutex;
+	Mutex group_task_mutex;
 
 	struct CompileData {
 		Version *version;
@@ -89,10 +90,10 @@ private:
 	void _compile_variant(uint32_t p_variant, CompileData p_data);
 
 	void _initialize_version(Version *p_version);
-	void _clear_version(Version *p_version);
+	void _clear_version(Version *p_version, MutexLock<Mutex> *p_lock = nullptr);
 	void _compile_version_start(Version *p_version, int p_group);
-	void _compile_version_end(Version *p_version, int p_group);
-	void _compile_ensure_finished(Version *p_version);
+	void _compile_version_end(Version *p_version, int p_group, MutexLock<Mutex> *p_lock = nullptr);
+	void _compile_ensure_finished(Version *p_version, MutexLock<Mutex> *p_lock = nullptr);
 	void _allocate_placeholders(Version *p_version, int p_group);
 
 	RID_Owner<Version> version_owner;
@@ -158,10 +159,10 @@ protected:
 public:
 	RID version_create();
 
-	void version_set_code(RID p_version, const HashMap<String, String> &p_code, const String &p_uniforms, const String &p_vertex_globals, const String &p_fragment_globals, const Vector<String> &p_custom_defines);
-	void version_set_compute_code(RID p_version, const HashMap<String, String> &p_code, const String &p_uniforms, const String &p_compute_globals, const Vector<String> &p_custom_defines);
+	void version_set_code(RID p_version, const HashMap<String, String> &p_code, const String &p_uniforms, const String &p_vertex_globals, const String &p_fragment_globals, const Vector<String> &p_custom_defines, MutexLock<Mutex> *p_lock = nullptr);
+	void version_set_compute_code(RID p_version, const HashMap<String, String> &p_code, const String &p_uniforms, const String &p_compute_globals, const Vector<String> &p_custom_defines, MutexLock<Mutex> *p_lock = nullptr);
 
-	_FORCE_INLINE_ RID version_get_shader(RID p_version, int p_variant) {
+	_FORCE_INLINE_ RID version_get_shader(RID p_version, int p_variant, MutexLock<Mutex> *p_lock = nullptr) {
 		ERR_FAIL_INDEX_V(p_variant, variant_defines.size(), RID());
 		ERR_FAIL_COND_V(!variants_enabled[p_variant], RID());
 
@@ -181,7 +182,7 @@ public:
 
 		uint32_t group = variant_to_group[p_variant];
 		if (version->group_compilation_tasks[group] != 0) {
-			_compile_version_end(version, group);
+			_compile_version_end(version, group, p_lock);
 		}
 
 		if (!version->valid) {
@@ -191,9 +192,9 @@ public:
 		return version->variants[p_variant];
 	}
 
-	bool version_is_valid(RID p_version);
+	bool version_is_valid(RID p_version, MutexLock<Mutex> *p_lock = nullptr);
 
-	bool version_free(RID p_version);
+	bool version_free(RID p_version, MutexLock<Mutex> *p_lock = nullptr);
 
 	// Enable/disable variants for things that you know won't be used at engine initialization time .
 	void set_variant_enabled(int p_variant, bool p_enabled);

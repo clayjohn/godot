@@ -146,7 +146,7 @@ void SceneShaderForwardClustered::ShaderData::set_code(const String &p_code) {
 
 	if (err != OK) {
 		if (version.is_valid()) {
-			SceneShaderForwardClustered::singleton->shader.version_free(version);
+			SceneShaderForwardClustered::singleton->shader.version_free(version, &lock);
 			version = RID();
 		}
 		ERR_FAIL_MSG("Shader compilation failed.");
@@ -185,7 +185,7 @@ void SceneShaderForwardClustered::ShaderData::set_code(const String &p_code) {
 	print_line("\n**vertex_globals:\n" + gen_code.stage_globals[ShaderCompiler::STAGE_VERTEX]);
 	print_line("\n**fragment_globals:\n" + gen_code.stage_globals[ShaderCompiler::STAGE_FRAGMENT]);
 #endif
-	SceneShaderForwardClustered::singleton->shader.version_set_code(version, gen_code.code, gen_code.uniforms, gen_code.stage_globals[ShaderCompiler::STAGE_VERTEX], gen_code.stage_globals[ShaderCompiler::STAGE_FRAGMENT], gen_code.defines);
+	SceneShaderForwardClustered::singleton->shader.version_set_code(version, gen_code.code, gen_code.uniforms, gen_code.stage_globals[ShaderCompiler::STAGE_VERTEX], gen_code.stage_globals[ShaderCompiler::STAGE_FRAGMENT], gen_code.defines, &lock);
 
 	ubo_size = gen_code.uniform_total_size;
 	ubo_offsets = gen_code.uniform_offsets;
@@ -408,7 +408,7 @@ RID SceneShaderForwardClustered::ShaderData::_get_shader_variant(uint16_t p_shad
 	if (version.is_valid()) {
 		MutexLock lock(SceneShaderForwardClustered::singleton_mutex);
 		ERR_FAIL_NULL_V(SceneShaderForwardClustered::singleton, RID());
-		return SceneShaderForwardClustered::singleton->shader.version_get_shader(version, p_shader_version);
+		return SceneShaderForwardClustered::singleton->shader.version_get_shader(version, p_shader_version, &lock);
 	} else {
 		return RID();
 	}
@@ -443,7 +443,7 @@ bool SceneShaderForwardClustered::ShaderData::is_valid() const {
 	if (version.is_valid()) {
 		MutexLock lock(SceneShaderForwardClustered::singleton_mutex);
 		ERR_FAIL_NULL_V(SceneShaderForwardClustered::singleton, false);
-		return SceneShaderForwardClustered::singleton->shader.version_is_valid(version);
+		return SceneShaderForwardClustered::singleton->shader.version_is_valid(version, &lock);
 	} else {
 		return false;
 	}
@@ -461,7 +461,7 @@ SceneShaderForwardClustered::ShaderData::~ShaderData() {
 	if (version.is_valid()) {
 		MutexLock lock(SceneShaderForwardClustered::singleton_mutex);
 		ERR_FAIL_NULL(SceneShaderForwardClustered::singleton);
-		SceneShaderForwardClustered::singleton->shader.version_free(version);
+		SceneShaderForwardClustered::singleton->shader.version_free(version, &lock);
 	}
 }
 
@@ -483,7 +483,7 @@ void SceneShaderForwardClustered::MaterialData::set_next_pass(RID p_pass) {
 bool SceneShaderForwardClustered::MaterialData::update_parameters(const HashMap<StringName, Variant> &p_parameters, bool p_uniform_dirty, bool p_textures_dirty) {
 	if (shader_data->version.is_valid()) {
 		MutexLock lock(SceneShaderForwardClustered::singleton_mutex);
-		return update_parameters_uniform_set(p_parameters, p_uniform_dirty, p_textures_dirty, shader_data->uniforms, shader_data->ubo_offsets.ptr(), shader_data->texture_uniforms, shader_data->default_texture_params, shader_data->ubo_size, uniform_set, SceneShaderForwardClustered::singleton->shader.version_get_shader(shader_data->version, 0), RenderForwardClustered::MATERIAL_UNIFORM_SET, true, true);
+		return update_parameters_uniform_set(p_parameters, p_uniform_dirty, p_textures_dirty, shader_data->uniforms, shader_data->ubo_offsets.ptr(), shader_data->texture_uniforms, shader_data->default_texture_params, shader_data->ubo_size, uniform_set, SceneShaderForwardClustered::singleton->shader.version_get_shader(shader_data->version, 0, &lock), RenderForwardClustered::MATERIAL_UNIFORM_SET, true, true);
 	} else {
 		return false;
 	}
