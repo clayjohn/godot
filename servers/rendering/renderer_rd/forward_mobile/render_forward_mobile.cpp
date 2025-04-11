@@ -912,7 +912,8 @@ void RenderForwardMobile::_render_scene(RenderDataRD *p_render_data, const Color
 
 	if (global_surface_data.screen_texture_used || global_surface_data.depth_texture_used) {
 		// Just called to create the framebuffer since we know we will need it later.
-		rb_data->get_color_fbs(RenderBufferDataForwardMobile::FB_CONFIG_RENDER_PASS);
+		RID temp_framebuffer = rb_data->get_color_fbs(RenderBufferDataForwardMobile::FB_CONFIG_RENDER_PASS);
+		_tonemapper_ensure_pipeline_is_ready(RD::get_singleton()->framebuffer_get_format(temp_framebuffer));
 		global_pipeline_data_required.use_separate_post_pass = true;
 	}
 

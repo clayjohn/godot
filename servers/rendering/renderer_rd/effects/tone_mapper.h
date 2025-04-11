@@ -148,6 +148,8 @@ public:
 		bool convert_to_srgb = false;
 	};
 
+	void tonemapper_ensure_pipeline_is_ready(RD::FramebufferFormatID p_dst_format_id);
+
 	void tonemapper(RID p_source_color, RID p_dst_framebuffer, const TonemapSettings &p_settings);
 	void tonemapper(RD::DrawListID p_subpass_draw_list, RID p_source_color, RD::FramebufferFormatID p_dst_format_id, const TonemapSettings &p_settings);
 };

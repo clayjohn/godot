@@ -732,6 +732,10 @@ void RendererSceneRenderRD::_render_buffers_post_process_and_tonemap(const Rende
 	texture_storage->render_target_disable_clear_request(render_target);
 }
 
+void RendererSceneRenderRD::_tonemapper_ensure_pipeline_is_ready(RD::FramebufferFormatID p_dst_format_id) {
+	tone_mapper->tonemapper_ensure_pipeline_is_ready(p_dst_format_id);
+}
+
 void RendererSceneRenderRD::_post_process_subpass(RID p_source_texture, RID p_framebuffer, const RenderDataRD *p_render_data) {
 	RendererRD::TextureStorage *texture_storage = RendererRD::TextureStorage::get_singleton();
 	RD::get_singleton()->draw_command_begin_label("Post Process Subpass");

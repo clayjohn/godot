@@ -81,6 +81,10 @@ ToneMapper::~ToneMapper() {
 	tonemap.shader.version_free(tonemap.shader_version);
 }
 
+void ToneMapper::tonemapper_ensure_pipeline_is_ready(RD::FramebufferFormatID p_dst_format_id) {
+	tonemap.pipelines[TONEMAP_MODE_NORMAL].get_render_pipeline(RD::INVALID_ID, p_dst_format_id, false, 0);
+}
+
 void ToneMapper::tonemapper(RID p_source_color, RID p_dst_framebuffer, const TonemapSettings &p_settings) {
 	UniformSetCacheRD *uniform_set_cache = UniformSetCacheRD::get_singleton();
 	ERR_FAIL_NULL(uniform_set_cache);
