@@ -18,47 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/* clang-format off */
-#[vertex]
+#[compute]
 
 #version 450
 
 #VERSION_DEFINES
 
-layout(push_constant, std430) uniform Params {
-	int mip_level;
-	uint face_id;
-}
-params;
+#define GROUP_SIZE 64
 
-layout(location = 0) out vec2 uv_interp;
-/* clang-format on */
+#include "../oct_inc.glsl"
 
-void main() {
-	vec2 base_arr[3] = vec2[](vec2(-1.0, -1.0), vec2(-1.0, 3.0), vec2(3.0, -1.0));
-	gl_Position = vec4(base_arr[gl_VertexIndex], 0.0, 1.0);
-	uv_interp = clamp(gl_Position.xy, vec2(0.0, 0.0), vec2(1.0, 1.0)) * 2.0; // saturate(x) * 2.0
-}
+layout(local_size_x = GROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 
-/* clang-format off */
-#[fragment]
-
-#version 450
-
-#VERSION_DEFINES
-
-layout(push_constant, std430) uniform Params {
-	int mip_level;
-	uint face_id;
-}
-params;
-
-layout(set = 0, binding = 0) uniform samplerCube source_cubemap;
-
-layout(location = 0) in vec2 uv_interp;
-layout(location = 0) out vec4 frag_color;
-
-/* clang-format on */
+layout(set = 0, binding = 0) uniform sampler2D source_octmap;
+layout(rgba16f, set = 2, binding = 0) uniform restrict writeonly image2D dest_octmap0;
+layout(rgba16f, set = 2, binding = 1) uniform restrict writeonly image2D dest_octmap1;
+layout(rgba16f, set = 2, binding = 2) uniform restrict writeonly image2D dest_octmap2;
+layout(rgba16f, set = 2, binding = 3) uniform restrict writeonly image2D dest_octmap3;
+layout(rgba16f, set = 2, binding = 4) uniform restrict writeonly image2D dest_octmap4;
+layout(rgba16f, set = 2, binding = 5) uniform restrict writeonly image2D dest_octmap5;
 
 #ifdef USE_HIGH_QUALITY
 #define NUM_TAPS 32
@@ -66,7 +44,13 @@ layout(location = 0) out vec4 frag_color;
 #define NUM_TAPS 8
 #endif
 
-#define BASE_RESOLUTION 128
+layout(push_constant, std430) uniform Params {
+	vec2 border_size;
+	vec2 pad;
+}
+params;
+
+#define BASE_RESOLUTION 320
 
 #ifdef USE_HIGH_QUALITY
 layout(set = 1, binding = 0, std430) buffer restrict readonly Data {
@@ -80,67 +64,38 @@ layout(set = 1, binding = 0, std430) buffer restrict readonly Data {
 data;
 #endif
 
-void get_dir(out vec3 dir, in vec2 uv, in uint face) {
-	switch (face) {
-		case 0:
-			dir = vec3(1.0, uv[1], -uv[0]);
-			break;
-		case 1:
-			dir = vec3(-1.0, uv[1], uv[0]);
-			break;
-		case 2:
-			dir = vec3(uv[0], 1.0, -uv[1]);
-			break;
-		case 3:
-			dir = vec3(uv[0], -1.0, uv[1]);
-			break;
-		case 4:
-			dir = vec3(uv[0], uv[1], 1.0);
-			break;
-		default:
-			dir = vec3(-uv[0], uv[1], -1.0);
-			break;
-	}
-}
-
 void main() {
-	// determine dir / pos for the texel
-	vec3 dir, adir, frameZ;
-	{
-		vec2 uv;
-		uv.x = uv_interp.x;
-		uv.y = 1.0 - uv_interp.y;
-		uv = uv * 2.0 - 1.0;
-
-		get_dir(dir, uv, params.face_id);
-		frameZ = normalize(dir);
-
-		adir = abs(dir);
-	}
-
-	// determine which texel this is
 	// NOTE (macOS/MoltenVK): Do not rename, "level" variable name conflicts with the Metal "level(float lod)" mipmap sampling function name.
-	int mip_level = 0;
-
-	if (params.mip_level < 0) {
-		// return as is
-		frag_color.rgb = textureLod(source_cubemap, frameZ, 0.0).rgb;
-		frag_color.a = 1.0;
-		return;
-	} else if (params.mip_level > 6) {
-		// maximum level
-		mip_level = 6;
-	} else {
-		mip_level = params.mip_level;
+	uvec2 id = gl_GlobalInvocationID.xy;
+	uint mip_level = 0;
+#ifndef USE_TEXTURE_ARRAY
+	uint res = BASE_RESOLUTION;
+	while ((id.x >= (res * res)) && (res > 1)) {
+		id.x -= res * res;
+		res = res >> 1;
+		mip_level++;
 	}
+#else // Using Texture Arrays so all levels are the same resolution
+	uint res = BASE_RESOLUTION;
+	mip_level = id.x / (BASE_RESOLUTION * BASE_RESOLUTION);
+	id.x -= mip_level * BASE_RESOLUTION * BASE_RESOLUTION;
+#endif
+	// Determine the direction from the texel's position.
+	id.y = id.x / res;
+	id.x -= id.y * res;
 
-	// GGX gather colors
+	vec2 inv_res = 1.0 / vec2(res);
+	vec3 dir = oct_to_vec3_with_border((vec2(id.xy) + vec2(0.5)) * inv_res, params.border_size);
+	vec3 adir = abs(dir);
+	vec3 frameZ = dir;
+
+	// Gather colors using GGX.
 	vec4 color = vec4(0.0);
 	for (int axis = 0; axis < 3; axis++) {
 		const int otherAxis0 = 1 - (axis & 1) - (axis >> 1);
 		const int otherAxis1 = 2 - (axis >> 1);
-
-		float frameweight = (max(adir[otherAxis0], adir[otherAxis1]) - .75) / .25;
+		const float lowerBound = 0.57735; // 1 / sqrt(3), magnitude for each component on a vector where all the components are equal.
+		float frameweight = (max(adir[otherAxis0], adir[otherAxis1]) - lowerBound) / (1.0 - lowerBound);
 		if (frameweight > 0.0) {
 			// determine frame
 			vec3 UpVector;
@@ -159,7 +114,7 @@ void main() {
 			vec3 frameX = normalize(cross(UpVector, frameZ));
 			vec3 frameY = cross(frameZ, frameX);
 
-			// calculate parametrization for polynomial
+			// Calculate parametrization for polynomial.
 			float Nx = dir[otherAxis0];
 			float Ny = dir[otherAxis1];
 			float Nz = adir[axis];
@@ -195,7 +150,8 @@ void main() {
 			float theta2 = theta * theta;
 			float phi2 = phi * phi;
 
-			// sample
+			// Sample. The coefficient table was computed with less mip levels than required, so we clamp the maximum level.
+			uint coeff_mip_level = min(mip_level, 5);
 			for (int iSuperTap = 0; iSuperTap < NUM_TAPS / 4; iSuperTap++) {
 				const int index = (NUM_TAPS / 4) * axis + iSuperTap;
 
@@ -207,29 +163,29 @@ void main() {
 				vec4 coeffsWeight[3];
 
 				for (int iCoeff = 0; iCoeff < 3; iCoeff++) {
-					coeffsDir0[iCoeff] = data.coeffs[mip_level][0][iCoeff][index];
-					coeffsDir1[iCoeff] = data.coeffs[mip_level][1][iCoeff][index];
-					coeffsDir2[iCoeff] = data.coeffs[mip_level][2][iCoeff][index];
-					coeffsLevel[iCoeff] = data.coeffs[mip_level][3][iCoeff][index];
-					coeffsWeight[iCoeff] = data.coeffs[mip_level][4][iCoeff][index];
+					coeffsDir0[iCoeff] = data.coeffs[coeff_mip_level][0][iCoeff][index];
+					coeffsDir1[iCoeff] = data.coeffs[coeff_mip_level][1][iCoeff][index];
+					coeffsDir2[iCoeff] = data.coeffs[coeff_mip_level][2][iCoeff][index];
+					coeffsLevel[iCoeff] = data.coeffs[coeff_mip_level][3][iCoeff][index];
+					coeffsWeight[iCoeff] = data.coeffs[coeff_mip_level][4][iCoeff][index];
 				}
 
 				for (int iSubTap = 0; iSubTap < 4; iSubTap++) {
-					// determine sample attributes (dir, weight, mip_level)
+					// Determine sample attributes (dir, weight, coeff_mip_level)
 					vec3 sample_dir = frameX * (coeffsDir0[0][iSubTap] + coeffsDir0[1][iSubTap] * theta2 + coeffsDir0[2][iSubTap] * phi2) + frameY * (coeffsDir1[0][iSubTap] + coeffsDir1[1][iSubTap] * theta2 + coeffsDir1[2][iSubTap] * phi2) + frameZ * (coeffsDir2[0][iSubTap] + coeffsDir2[1][iSubTap] * theta2 + coeffsDir2[2][iSubTap] * phi2);
 
 					float sample_level = coeffsLevel[0][iSubTap] + coeffsLevel[1][iSubTap] * theta2 + coeffsLevel[2][iSubTap] * phi2;
 
 					float sample_weight = coeffsWeight[0][iSubTap] + coeffsWeight[1][iSubTap] * theta2 + coeffsWeight[2][iSubTap] * phi2;
 #else
-				vec4 coeffsDir0 = data.coeffs[mip_level][0][index];
-				vec4 coeffsDir1 = data.coeffs[mip_level][1][index];
-				vec4 coeffsDir2 = data.coeffs[mip_level][2][index];
-				vec4 coeffsLevel = data.coeffs[mip_level][3][index];
-				vec4 coeffsWeight = data.coeffs[mip_level][4][index];
+				vec4 coeffsDir0 = data.coeffs[coeff_mip_level][0][index];
+				vec4 coeffsDir1 = data.coeffs[coeff_mip_level][1][index];
+				vec4 coeffsDir2 = data.coeffs[coeff_mip_level][2][index];
+				vec4 coeffsLevel = data.coeffs[coeff_mip_level][3][index];
+				vec4 coeffsWeight = data.coeffs[coeff_mip_level][4][index];
 
 				for (int iSubTap = 0; iSubTap < 4; iSubTap++) {
-					// determine sample attributes (dir, weight, mip_level)
+					// determine sample attributes (dir, weight, coeff_mip_level)
 					vec3 sample_dir = frameX * coeffsDir0[iSubTap] + frameY * coeffsDir1[iSubTap] + frameZ * coeffsDir2[iSubTap];
 
 					float sample_level = coeffsLevel[iSubTap];
@@ -239,21 +195,64 @@ void main() {
 
 					sample_weight *= frameweight;
 
-					// adjust for jacobian
+#ifdef USE_HIGH_QUALITY
+					// Adjust for Jacobian.
 					sample_dir /= max(abs(sample_dir[0]), max(abs(sample_dir[1]), abs(sample_dir[2])));
 					sample_level += 0.75 * log2(dot(sample_dir, sample_dir));
-					// sample cubemap
-					color.xyz += textureLod(source_cubemap, normalize(sample_dir), sample_level).xyz * sample_weight;
-					color.w += sample_weight;
+#endif
+
+#ifndef USE_TEXTURE_ARRAY
+					sample_level += float(mip_level) / 5.0; // Hack to increase the perceived roughness and reduce upscaling artifacts
+#endif
+					// Sample Octmap.
+					vec2 sample_uv = vec3_to_oct_with_border(normalize(sample_dir), params.border_size);
+					color.rgb += textureLod(source_octmap, sample_uv, sample_level).rgb * sample_weight;
+					color.a += sample_weight;
 				}
 			}
 		}
 	}
-	color /= color.w;
 
-	// write color
-	color.xyz = max(vec3(0.0), color.xyz);
-	color.w = 1.0;
+	// Write out the result.
+	color = vec4(max(vec3(0.0), color.rgb / color.a), 1.0);
 
-	frag_color = color;
+#ifdef USE_TEXTURE_ARRAY
+	id.xy *= uvec2(2, 2);
+#endif
+
+	if (mip_level > 5) {
+		return;
+	}
+
+#ifdef USE_TEXTURE_ARRAY
+#define IMAGE_STORE(x)                             \
+	imageStore(x, ivec2(id), color);               \
+	imageStore(x, ivec2(id) + ivec2(1, 0), color); \
+	imageStore(x, ivec2(id) + ivec2(0, 1), color); \
+	imageStore(x, ivec2(id) + ivec2(1, 1), color)
+#else
+#define IMAGE_STORE(x) imageStore(x, ivec2(id), color)
+#endif
+
+	switch (mip_level) {
+		case 0:
+			IMAGE_STORE(dest_octmap0);
+			break;
+		case 1:
+			IMAGE_STORE(dest_octmap1);
+			break;
+		case 2:
+			IMAGE_STORE(dest_octmap2);
+			break;
+		case 3:
+			IMAGE_STORE(dest_octmap3);
+			break;
+		case 4:
+			IMAGE_STORE(dest_octmap4);
+			break;
+		case 5:
+		default:
+			IMAGE_STORE(dest_octmap5);
+			break;
+	}
 }
