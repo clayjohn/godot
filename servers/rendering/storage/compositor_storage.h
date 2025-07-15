@@ -53,6 +53,10 @@ private:
 	struct Compositor {
 		// Compositor effects
 		Vector<RID> compositor_effects;
+
+		// Use RBMap for fast sorted iteration over sparse indices.
+		RBMap<int, RS::CompositorOpaquePass> passes;
+		uint32_t background_index = 100;
 	};
 
 	mutable RID_Owner<Compositor, true> compositor_owner;
@@ -94,4 +98,19 @@ public:
 
 	void compositor_set_compositor_effects(RID p_compositor, const Vector<RID> &p_effects);
 	Vector<RID> compositor_get_compositor_effects(RID p_compositor, RS::CompositorEffectCallbackType p_callback_type = RS::COMPOSITOR_EFFECT_CALLBACK_TYPE_ANY, bool p_enabled_only = true) const;
+
+	void compositor_set_custom_buffer_format(RID p_compositor, int p_buffer_index, RS::CompositorCustomBufferFormat p_format);
+
+	void compositor_add_opaque_pass(RID p_compositor, int p_index);
+	void compositor_remove_opaque_pass(RID p_compositor, int p_index);
+	Vector<const RS::CompositorOpaquePass *> compositor_get_opaque_passes(RID p_compositor);
+
+	void compositor_set_opaque_pass_action_flags(RID p_compositor, int p_pass, BitField<RS::CompositorOpaquePassActionFlags> p_flags);
+	void compositor_set_opaque_pass_stencil_clear_value(RID p_compositor, int p_pass, int p_value);
+	void compositor_set_opaque_pass_depth_clear_value(RID p_compositor, int p_pass, int p_value);
+	void compositor_set_opaque_pass_custom_buffer_usage(RID p_compositor, int p_pass, BitField<RS::CompositorCustomBufferMask> p_usage);
+	void compositor_set_opaque_pass_custom_buffer_clear_color(RID p_compositor, int p_pass, int p_buffer, Color p_color);
+	void compositor_set_opaque_pass_render_depth_prepass(RID p_compositor, int p_pass, bool p_enable);
+
+	void compositor_set_background_clear_pass_index(RID p_compositor, int p_index);
 };

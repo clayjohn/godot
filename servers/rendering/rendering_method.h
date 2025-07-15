@@ -152,6 +152,19 @@ public:
 	virtual bool is_compositor(RID p_compositor) const = 0;
 
 	virtual void compositor_set_compositor_effects(RID p_env, const TypedArray<RID> &p_effects) = 0;
+	virtual void compositor_set_custom_buffer_format(RID p_compositor, int p_buffer_index, RS::CompositorCustomBufferFormat p_format) = 0;
+
+	virtual void compositor_add_opaque_pass(RID p_compositor, int p_index) = 0;
+	virtual void compositor_remove_opaque_pass(RID p_compositor, int p_index) = 0;
+
+	virtual void compositor_set_opaque_pass_action_flags(RID p_compositor, int p_pass, BitField<RS::CompositorOpaquePassActionFlags> p_flags) = 0;
+	virtual void compositor_set_opaque_pass_stencil_clear_value(RID p_compositor, int p_pass, int p_value) = 0;
+	virtual void compositor_set_opaque_pass_depth_clear_value(RID p_compositor, int p_pass, int p_value) = 0;
+	virtual void compositor_set_opaque_pass_custom_buffer_usage(RID p_compositor, int p_pass, BitField<RS::CompositorCustomBufferMask> p_usage) = 0;
+	virtual void compositor_set_opaque_pass_custom_buffer_clear_color(RID p_compositor, int p_pass, int p_buffer, Color p_color) = 0;
+	virtual void compositor_set_opaque_pass_render_depth_prepass(RID p_compositor, int p_pass, bool p_enable) = 0;
+
+	virtual void compositor_set_background_clear_pass_index(RID p_compositor, int p_index) = 0;
 
 	/* ENVIRONMENT API */
 

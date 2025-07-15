@@ -711,6 +711,7 @@ private:
 	};
 
 	RenderList render_list[RENDER_LIST_MAX];
+	LocalVector<RenderList> opaque_pass_render_list;
 
 	virtual void _update_shader_quality_settings() override;
 

@@ -2171,17 +2171,61 @@ void RenderForwardClustered::_render_scene(RenderDataRD *p_render_data, const Co
 			}
 		}
 
+		RID motion_uniform_set;
+
 		if (render_motion_pass) {
 			RD::get_singleton()->draw_command_begin_label("Render Motion Pass");
 
 			RENDER_TIMESTAMP("Render Motion Pass");
 
-			rp_uniform_set = _setup_render_pass_uniform_set(RENDER_LIST_MOTION, p_render_data, radiance_texture, samplers, true);
+			motion_uniform_set = _setup_render_pass_uniform_set(RENDER_LIST_MOTION, p_render_data, radiance_texture, samplers, true);
 
-			RenderListParameters render_list_params(render_list[RENDER_LIST_MOTION].elements.ptr(), render_list[RENDER_LIST_MOTION].element_info.ptr(), render_list[RENDER_LIST_MOTION].elements.size(), reverse_cull, PASS_MODE_COLOR, color_pass_flags, rb_data.is_null(), p_render_data->directional_light_soft_shadows, rp_uniform_set, get_debug_draw_mode() == RS::VIEWPORT_DEBUG_DRAW_WIREFRAME, Vector2(), p_render_data->scene_data->lod_distance_multiplier, p_render_data->scene_data->screen_mesh_lod_threshold, p_render_data->scene_data->view_count, 0, base_specialization);
+			RenderListParameters render_list_params(render_list[RENDER_LIST_MOTION].elements.ptr(), render_list[RENDER_LIST_MOTION].element_info.ptr(), render_list[RENDER_LIST_MOTION].elements.size(), reverse_cull, PASS_MODE_COLOR, color_pass_flags, rb_data.is_null(), p_render_data->directional_light_soft_shadows, motion_uniform_set, get_debug_draw_mode() == RS::VIEWPORT_DEBUG_DRAW_WIREFRAME, Vector2(), p_render_data->scene_data->lod_distance_multiplier, p_render_data->scene_data->screen_mesh_lod_threshold, p_render_data->scene_data->view_count, 0, base_specialization);
 			_render_list_with_draw_list(&render_list_params, color_framebuffer);
 
 			RD::get_singleton()->draw_command_end_label();
+		}
+
+		RendererCompositorStorage *comp_storage = RendererCompositorStorage::get_singleton();
+
+		if (p_render_data->reflection_probe.is_null() && p_render_data->compositor.is_valid() && comp_storage->is_compositor(p_render_data->compositor)) {
+			// Process compositor passes.
+			Vector<RS::CompositorOpaquePass> passes = comp_storage->compositor_get_opaque_passes(p_render_data->compositor);
+			for (int i = 0; i < passes.size(); i++) {
+				const RS::CompositorOpaquePass &pass = passes[i];
+
+				if (pass.flags & RS::COMPOSITOR_OPAQUE_PASS_ACTION_COPY_SCREEN_TO_BACKBUFFER) {
+					for (uint32_t v = 0; v < rb->get_view_count(); v++) {
+						RD::get_singleton()->texture_resolve_multisample(rb->get_color_msaa(v), rb->get_internal_texture(v));
+					}
+				}
+
+				if (pass.flags & RS::COMPOSITOR_OPAQUE_PASS_ACTION_COPY_DEPTH_TO_BACKBUFFER) {
+					for (uint32_t v = 0; v < rb->get_view_count(); v++) {
+						resolve_effects->resolve_depth(rb->get_depth_msaa(v), rb->get_depth_texture(v), rb->get_internal_size(), texture_multisamples[msaa]);
+					}
+				}
+
+				if (pass.flags & RS::COMPOSITOR_OPAQUE_PASS_ACTION_COPY_SCREEN_MIPMAPS_TO_BACKBUFFER) {
+					_render_buffers_ensure_screen_texture(p_render_data);
+					_render_buffers_copy_screen_texture(p_render_data);
+				}
+
+				Vector<Color> c;
+
+				BitField<RD::DrawFlags> draw_flags = RD::DRAW_DEFAULT_ALL;
+
+				draw_flags |= (pass.flags & RS : COMPOSITOR_OPAQUE_PASS_ACTION_CLEAR_DEPTH) ? RD::DRAW_CLEAR_DEPTH : 0;
+				draw_flags |= (pass.flags & RS : COMPOSITOR_OPAQUE_PASS_ACTION_CLEAR_STENCIL) ? RD::DRAW_CLEAR_STENCIL : 0;
+
+				RenderListParameters render_list_params(render_list[RENDER_LIST_OPAQUE].elements.ptr(), render_list[RENDER_LIST_OPAQUE].element_info.ptr(), render_list[RENDER_LIST_OPAQUE].elements.size(), reverse_cull, PASS_MODE_COLOR, opaque_color_pass_flags, rb_data.is_null(), p_render_data->directional_light_soft_shadows, rp_uniform_set, get_debug_draw_mode() == RS::VIEWPORT_DEBUG_DRAW_WIREFRAME, Vector2(), p_render_data->scene_data->lod_distance_multiplier, p_render_data->scene_data->screen_mesh_lod_threshold, p_render_data->scene_data->view_count, 0, base_specialization);
+				_render_list_with_draw_list(&render_list_params, opaque_framebuffer, draw_flags, c, pass.depth_clear_value, pass.stencil_clear_value, p_render_data->render_region);
+
+				if (render_motion_pass) {
+					RenderListParameters render_list_params(render_list[RENDER_LIST_MOTION].elements.ptr(), render_list[RENDER_LIST_MOTION].element_info.ptr(), render_list[RENDER_LIST_MOTION].elements.size(), reverse_cull, PASS_MODE_COLOR, color_pass_flags, rb_data.is_null(), p_render_data->directional_light_soft_shadows, motion_uniform_set, get_debug_draw_mode() == RS::VIEWPORT_DEBUG_DRAW_WIREFRAME, Vector2(), p_render_data->scene_data->lod_distance_multiplier, p_render_data->scene_data->screen_mesh_lod_threshold, p_render_data->scene_data->view_count, 0, base_specialization);
+					_render_list_with_draw_list(&render_list_params, color_framebuffer);
+				}
+			}
 		}
 	}
 

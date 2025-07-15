@@ -153,7 +153,10 @@ RID RendererCompositorStorage::compositor_allocate() {
 }
 
 void RendererCompositorStorage::compositor_initialize(RID p_rid) {
-	compositor_owner.initialize_rid(p_rid, Compositor());
+	Compositor compositor = Compositor();
+	compositor.passes[0] = RS::CompositorOpaquePass(); // Can be garbage, will be ignored at run time. Just a placeholder.
+
+	compositor_owner.initialize_rid(p_rid, compositor);
 }
 
 void RendererCompositorStorage::compositor_free(RID p_rid) {
@@ -191,4 +194,101 @@ Vector<RID> RendererCompositorStorage::compositor_get_compositor_effects(RID p_c
 	} else {
 		return compositor->compositor_effects;
 	}
+}
+
+void RendererCompositorStorage::compositor_set_custom_buffer_format(RID p_compositor, int p_buffer_index, RS::CompositorCustomBufferFormat p_format) {
+}
+
+void RendererCompositorStorage::compositor_add_opaque_pass(RID p_compositor, int p_index) {
+	Compositor *compositor = compositor_owner.get_or_null(p_compositor);
+	ERR_FAIL_NULL(compositor);
+
+	if (compositor->passes.has(p_index)) {
+		return;
+	}
+	compositor->passes.insert(p_index, RS::CompositorOpaquePass());
+}
+
+void RendererCompositorStorage::compositor_remove_opaque_pass(RID p_compositor, int p_index) {
+	Compositor *compositor = compositor_owner.get_or_null(p_compositor);
+	ERR_FAIL_NULL(compositor);
+
+	RBMap<int, RS::CompositorOpaquePass>::Element *element = compositor->passes.find(p_index);
+	ERR_FAIL_NULL_MSG(element, "Cannot erase opaque pass, doesn't exist.");
+
+	compositor->passes.erase(element);
+}
+
+Vector<const RS::CompositorOpaquePass *> RendererCompositorStorage::compositor_get_opaque_passes(RID p_compositor) {
+	Compositor *compositor = compositor_owner.get_or_null(p_compositor);
+	ERR_FAIL_NULL_V(compositor, Vector<const RS::CompositorOpaquePass *>());
+	Vector<const RS::CompositorOpaquePass *> passes;
+
+	for (const RBMap<int, RS::CompositorOpaquePass>::Element *E = compositor->passes.front(); E; E = E->next()) {
+		passes.push_back(&E->get());
+	}
+	return passes;
+}
+
+void RendererCompositorStorage::compositor_set_opaque_pass_action_flags(RID p_compositor, int p_pass, BitField<RS::RS::CompositorOpaquePassActionFlags> p_flags) {
+	Compositor *compositor = compositor_owner.get_or_null(p_compositor);
+	ERR_FAIL_NULL(compositor);
+
+	RBMap<int, RS::CompositorOpaquePass>::Element *element = compositor->passes.find(p_pass);
+	ERR_FAIL_NULL_MSG(element, "Cannot set action flags on opaque pass, doesn't exist.");
+	element->get().flags = p_flags;
+}
+
+void RendererCompositorStorage::compositor_set_opaque_pass_stencil_clear_value(RID p_compositor, int p_pass, int p_value) {
+	Compositor *compositor = compositor_owner.get_or_null(p_compositor);
+	ERR_FAIL_NULL(compositor);
+
+	RBMap<int, RS::CompositorOpaquePass>::Element *element = compositor->passes.find(p_pass);
+	ERR_FAIL_NULL_MSG(element, "Cannot erase opaque pass, doesn't exist.");
+	element->get().stencil_clear_value = p_value;
+}
+
+void RendererCompositorStorage::compositor_set_opaque_pass_depth_clear_value(RID p_compositor, int p_pass, int p_value) {
+	Compositor *compositor = compositor_owner.get_or_null(p_compositor);
+	ERR_FAIL_NULL(compositor);
+
+	RBMap<int, RS::CompositorOpaquePass>::Element *element = compositor->passes.find(p_pass);
+	ERR_FAIL_NULL_MSG(element, "Cannot set action flags on opaque pass, doesn't exist.");
+	element->get().depth_clear_value = p_value;
+}
+
+void RendererCompositorStorage::compositor_set_opaque_pass_custom_buffer_usage(RID p_compositor, int p_pass, BitField<RS::CompositorCustomBufferMask> p_usage) {
+	Compositor *compositor = compositor_owner.get_or_null(p_compositor);
+	ERR_FAIL_NULL(compositor);
+
+	RBMap<int, RS::CompositorOpaquePass>::Element *element = compositor->passes.find(p_pass);
+	ERR_FAIL_NULL_MSG(element, "Cannot set action flags on opaque pass, doesn't exist.");
+	element->get().usage = p_usage;
+}
+
+void RendererCompositorStorage::compositor_set_opaque_pass_custom_buffer_clear_color(RID p_compositor, int p_pass, int p_buffer, Color p_color) {
+	ERR_FAIL_INDEX(p_buffer, RS::COMPOSITOR_MAX_BUFFERS);
+
+	Compositor *compositor = compositor_owner.get_or_null(p_compositor);
+	ERR_FAIL_NULL(compositor);
+
+	RBMap<int, RS::CompositorOpaquePass>::Element *element = compositor->passes.find(p_pass);
+	ERR_FAIL_NULL_MSG(element, "Cannot set action flags on opaque pass, doesn't exist.");
+	element->get().clear_colors[p_buffer] = p_color;
+}
+
+void RendererCompositorStorage::compositor_set_opaque_pass_render_depth_prepass(RID p_compositor, int p_pass, bool p_enable) {
+	Compositor *compositor = compositor_owner.get_or_null(p_compositor);
+	ERR_FAIL_NULL(compositor);
+
+	RBMap<int, RS::CompositorOpaquePass>::Element *element = compositor->passes.find(p_pass);
+	ERR_FAIL_NULL_MSG(element, "Cannot set action flags on opaque pass, doesn't exist.");
+	element->get().render_depth_prepass = p_enable;
+}
+
+void RendererCompositorStorage::compositor_set_background_clear_pass_index(RID p_compositor, int p_index) {
+	Compositor *compositor = compositor_owner.get_or_null(p_compositor);
+	ERR_FAIL_NULL(compositor);
+
+	compositor->background_index = p_index;
 }

@@ -780,6 +780,16 @@ public:
 	/* COMPOSITOR */
 
 	FUNC2(compositor_set_compositor_effects, RID, const TypedArray<RID> &)
+	FUNC3(compositor_set_custom_buffer_format, RID, int, RS::CompositorCustomBufferFormat)
+	FUNC2(compositor_add_opaque_pass, RID, int)
+	FUNC2(compositor_remove_opaque_pass, RID, int)
+	FUNC3(compositor_set_opaque_pass_action_flags, RID, int, BitField<RS::CompositorOpaquePassActionFlags>)
+	FUNC3(compositor_set_opaque_pass_stencil_clear_value, RID, int, int)
+	FUNC3(compositor_set_opaque_pass_depth_clear_value, RID, int, int)
+	FUNC3(compositor_set_opaque_pass_custom_buffer_usage, RID, int, BitField<RS::CompositorCustomBufferMask>)
+	FUNC4(compositor_set_opaque_pass_custom_buffer_clear_color, RID, int, int, Color)
+	FUNC3(compositor_set_opaque_pass_render_depth_prepass, RID, int, bool)
+	FUNC2(compositor_set_background_clear_pass_index, RID, int)
 
 	FUNCRIDSPLIT(compositor)
 

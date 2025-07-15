@@ -247,6 +247,46 @@ void RendererSceneRender::compositor_set_compositor_effects(RID p_compositor, co
 	compositor_storage.compositor_set_compositor_effects(p_compositor, rids);
 }
 
+void RendererSceneRender::compositor_set_custom_buffer_format(RID p_compositor, int p_buffer_index, RS::CompositorCustomBufferFormat p_format) {
+	compositor_storage.compositor_set_custom_buffer_format(p_compositor, p_buffer_index, p_format);
+}
+
+void RendererSceneRender::compositor_add_opaque_pass(RID p_compositor, int p_index) {
+	compositor_storage.compositor_add_opaque_pass(p_compositor, p_index);
+}
+
+void RendererSceneRender::compositor_remove_opaque_pass(RID p_compositor, int p_index) {
+	compositor_storage.compositor_remove_opaque_pass(p_compositor, p_index);
+}
+
+void RendererSceneRender::compositor_set_opaque_pass_action_flags(RID p_compositor, int p_pass, BitField<RS::CompositorOpaquePassActionFlags> p_flags) {
+	compositor_storage.compositor_set_opaque_pass_action_flags(p_compositor, p_pass, p_flags);
+}
+
+void RendererSceneRender::compositor_set_opaque_pass_stencil_clear_value(RID p_compositor, int p_pass, int p_value) {
+	compositor_storage.compositor_set_opaque_pass_stencil_clear_value(p_compositor, p_pass, p_value);
+}
+
+void RendererSceneRender::compositor_set_opaque_pass_depth_clear_value(RID p_compositor, int p_pass, int p_value) {
+	compositor_storage.compositor_set_opaque_pass_depth_clear_value(p_compositor, p_pass, p_value);
+}
+
+void RendererSceneRender::compositor_set_opaque_pass_custom_buffer_usage(RID p_compositor, int p_pass, BitField<RS::CompositorCustomBufferMask> p_usage) {
+	compositor_storage.compositor_set_opaque_pass_custom_buffer_usage(p_compositor, p_pass, p_usage);
+}
+
+void RendererSceneRender::compositor_set_opaque_pass_custom_buffer_clear_color(RID p_compositor, int p_pass, int p_buffer, Color p_color) {
+	compositor_storage.compositor_set_opaque_pass_custom_buffer_clear_color(p_compositor, p_pass, p_buffer, p_color);
+}
+
+void RendererSceneRender::compositor_set_opaque_pass_render_depth_prepass(RID p_compositor, int p_pass, bool p_enable) {
+	compositor_storage.compositor_set_opaque_pass_render_depth_prepass(p_compositor, p_pass, p_enable);
+}
+
+void RendererSceneRender::compositor_set_background_clear_pass_index(RID p_compositor, int p_index) {
+	compositor_storage.compositor_set_background_clear_pass_index(p_compositor, p_index);
+}
+
 /* Environment API */
 
 RID RendererSceneRender::environment_allocate() {

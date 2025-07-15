@@ -1205,6 +1205,16 @@ public:
 	PASS1RC(bool, is_compositor, RID)
 
 	PASS2(compositor_set_compositor_effects, RID, const TypedArray<RID> &)
+	PASS3(compositor_set_custom_buffer_format, RID, int, RS::CompositorCustomBufferFormat)
+	PASS2(compositor_add_opaque_pass, RID, int)
+	PASS2(compositor_remove_opaque_pass, RID, int)
+	PASS3(compositor_set_opaque_pass_action_flags, RID, int, BitField<RS::CompositorOpaquePassActionFlags>)
+	PASS3(compositor_set_opaque_pass_stencil_clear_value, RID, int, int)
+	PASS3(compositor_set_opaque_pass_depth_clear_value, RID, int, int)
+	PASS3(compositor_set_opaque_pass_custom_buffer_usage, RID, int, BitField<RS::CompositorCustomBufferMask>)
+	PASS4(compositor_set_opaque_pass_custom_buffer_clear_color, RID, int, int, Color)
+	PASS3(compositor_set_opaque_pass_render_depth_prepass, RID, int, bool)
+	PASS2(compositor_set_background_clear_pass_index, RID, int)
 
 	// Environment
 

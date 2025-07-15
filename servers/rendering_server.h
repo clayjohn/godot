@@ -1216,9 +1216,67 @@ public:
 
 	/* COMPOSITOR API */
 
+	enum CompositorCustomBufferFormat {
+		COMPOSITOR_CUSTOM_BUFFER_DISABLED,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_R8,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_RG8,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_RGBA8,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_R16F,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_RG16F,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_RGBA16F,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_R32F,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_RG32F,
+		COMPOSITOR_CUSTOM_BUFFER_FORMAT_RGBA32F,
+	};
+
+	enum {
+		COMPOSITOR_MAX_BUFFERS = 4
+	};
+
+	enum CompositorOpaquePassActionFlags {
+		COMPOSITOR_OPAQUE_PASS_ACTION_COPY_DEPTH_TO_BACKBUFFER = 1,
+		COMPOSITOR_OPAQUE_PASS_ACTION_COPY_SCREEN_TO_BACKBUFFER = 2,
+		COMPOSITOR_OPAQUE_PASS_ACTION_COPY_SCREEN_MIPMAPS_TO_BACKBUFFER = 4,
+		COMPOSITOR_OPAQUE_PASS_ACTION_CLEAR_STENCIL = 8,
+		COMPOSITOR_OPAQUE_PASS_ACTION_CLEAR_DEPTH = 32,
+		COMPOSITOR_OPAQUE_PASS_ACTION_CLEAR_CUSTOM_BUFFER0 = 64,
+		COMPOSITOR_OPAQUE_PASS_ACTION_CLEAR_CUSTOM_BUFFER1 = 128,
+		COMPOSITOR_OPAQUE_PASS_ACTION_CLEAR_CUSTOM_BUFFER2 = 256,
+		COMPOSITOR_OPAQUE_PASS_ACTION_CLEAR_CUSTOM_BUFFER3 = 512,
+	};
+
+	enum CompositorCustomBufferMask {
+		COMPOSITOR_CUSTOM_CUSTOM_BUFFER0 = 1,
+		COMPOSITOR_CUSTOM_CUSTOM_BUFFER1 = 2,
+		COMPOSITOR_CUSTOM_CUSTOM_BUFFER2 = 4,
+		COMPOSITOR_CUSTOM_CUSTOM_BUFFER3 = 8,
+	};
+
+	struct CompositorOpaquePass {
+		BitField<RenderingServer::CompositorOpaquePassActionFlags> flags;
+		BitField<RenderingServer::CompositorCustomBufferMask> usage;
+		float stencil_clear_value = 1.0;
+		float depth_clear_value = 1.0;
+		Color clear_colors[RenderingServer::COMPOSITOR_MAX_BUFFERS];
+		bool render_depth_prepass = true;
+	};
+
 	virtual RID compositor_create() = 0;
 
 	virtual void compositor_set_compositor_effects(RID p_compositor, const TypedArray<RID> &p_effects) = 0;
+	virtual void compositor_set_custom_buffer_format(RID p_compositor, int p_buffer_index, CompositorCustomBufferFormat p_format) = 0;
+
+	virtual void compositor_add_opaque_pass(RID p_compositor, int p_index) = 0; // if exits it does nothing.
+	virtual void compositor_remove_opaque_pass(RID p_compositor, int p_index) = 0;
+
+	virtual void compositor_set_opaque_pass_action_flags(RID p_compositor, int p_pass, BitField<CompositorOpaquePassActionFlags> p_flags) = 0;
+	virtual void compositor_set_opaque_pass_stencil_clear_value(RID p_compositor, int p_pass, int p_value) = 0;
+	virtual void compositor_set_opaque_pass_depth_clear_value(RID p_compositor, int p_pass, int p_value) = 0;
+	virtual void compositor_set_opaque_pass_custom_buffer_usage(RID p_compositor, int p_pass, BitField<CompositorCustomBufferMask> p_usage) = 0;
+	virtual void compositor_set_opaque_pass_custom_buffer_clear_color(RID p_compositor, int p_pass, int p_buffer, Color p_color) = 0;
+	virtual void compositor_set_opaque_pass_render_depth_prepass(RID p_compositor, int p_pass, bool p_enable) = 0;
+
+	virtual void compositor_set_background_clear_pass_index(RID p_compositor, int p_index) = 0;
 
 	/* ENVIRONMENT API */
 
