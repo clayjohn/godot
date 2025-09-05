@@ -64,14 +64,18 @@
 #endif
 
 #include <avrt.h>
+#include <devguid.h>
 #include <dwmapi.h>
 #include <propkey.h>
 #include <propvarutil.h>
+#include <setupapi.h>
 #include <shellapi.h>
 #include <shellscalingapi.h>
 #include <shlwapi.h>
 #include <shobjidl.h>
 #include <wbemcli.h>
+
+#pragma comment(lib, "setupapi.lib")
 
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
@@ -6626,59 +6630,62 @@ Vector2i _get_device_ids(const String &p_device_name) {
 		return Vector2i();
 	}
 
-	REFCLSID clsid = CLSID_WbemLocator; // Unmarshaler CLSID
-	REFIID uuid = IID_IWbemLocator; // Interface UUID
-	IWbemLocator *wbemLocator = nullptr; // to get the services
-	IWbemServices *wbemServices = nullptr; // to get the class
-	IEnumWbemClassObject *iter = nullptr;
-	IWbemClassObject *pnpSDriverObject[1]; // contains driver name, version, etc.
-
-	HRESULT hr = CoCreateInstance(clsid, nullptr, CLSCTX_INPROC_SERVER, uuid, (LPVOID *)&wbemLocator);
-	if (hr != S_OK) {
-		return Vector2i();
-	}
-	BSTR resource_name = SysAllocString(L"root\\CIMV2");
-	hr = wbemLocator->ConnectServer(resource_name, nullptr, nullptr, nullptr, 0, nullptr, nullptr, &wbemServices);
-	SysFreeString(resource_name);
-
-	SAFE_RELEASE(wbemLocator) // from now on, use `wbemServices`
-	if (hr != S_OK) {
-		SAFE_RELEASE(wbemServices)
-		return Vector2i();
-	}
-
 	Vector2i ids;
 
-	const String gpu_device_class_query = vformat("SELECT * FROM Win32_PnPSignedDriver WHERE DeviceName = \"%s\"", p_device_name);
-	BSTR query = SysAllocString((const WCHAR *)gpu_device_class_query.utf16().get_data());
-	BSTR query_lang = SysAllocString(L"WQL");
-	hr = wbemServices->ExecQuery(query_lang, query, WBEM_FLAG_RETURN_IMMEDIATELY | WBEM_FLAG_FORWARD_ONLY, nullptr, &iter);
-	SysFreeString(query_lang);
-	SysFreeString(query);
-	if (hr == S_OK) {
-		ULONG resultCount;
-		hr = iter->Next(5000, 1, pnpSDriverObject, &resultCount); // Get exactly 1. Wait max 5 seconds.
+	// Get all devices in the "Display" class
+	HDEVINFO hDevInfo = SetupDiGetClassDevs(
+			&GUID_DEVCLASS_DISPLAY, // GPUs
+			NULL,
+			NULL,
+			DIGCF_PRESENT);
 
-		if (hr == S_OK && resultCount > 0) {
-			VARIANT did;
-			VariantInit(&did);
-			BSTR object_name = SysAllocString(L"DeviceID");
-			hr = pnpSDriverObject[0]->Get(object_name, 0, &did, nullptr, nullptr);
-			SysFreeString(object_name);
-			if (hr == S_OK) {
-				String device_id = String(V_BSTR(&did));
-				ids.x = device_id.get_slicec('&', 0).lstrip("PCI\\VEN_").hex_to_int();
-				ids.y = device_id.get_slicec('&', 1).lstrip("DEV_").hex_to_int();
-			}
+	if (hDevInfo == INVALID_HANDLE_VALUE) {
+		return Vector2i();
+	}
 
-			for (ULONG i = 0; i < resultCount; i++) {
-				SAFE_RELEASE(pnpSDriverObject[i])
+	SP_DEVINFO_DATA devInfoData;
+	devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+
+	for (DWORD i = 0; SetupDiEnumDeviceInfo(hDevInfo, i, &devInfoData); i++) {
+		CHAR nameBuffer[1024];
+		DWORD size = 0;
+
+		// Get device description (e.g. "NVIDIA GeForce RTX 2070")
+		if (SetupDiGetDeviceRegistryPropertyA(
+					hDevInfo,
+					&devInfoData,
+					SPDRP_DEVICEDESC,
+					NULL,
+					(PBYTE)nameBuffer,
+					sizeof(nameBuffer),
+					&size)) {
+			String deviceName = String(nameBuffer);
+
+			if (p_device_name.find(deviceName) == 0) {
+				CHAR hwidBuffer[1024];
+				if (SetupDiGetDeviceRegistryPropertyA(
+							hDevInfo,
+							&devInfoData,
+							SPDRP_HARDWAREID,
+							NULL,
+							(PBYTE)hwidBuffer,
+							sizeof(hwidBuffer),
+							&size)) {
+					String hwid = String(hwidBuffer);
+
+					int venPos = hwid.find("VEN_");
+					int devPos = hwid.find("DEV_");
+
+					if (venPos >= 0 && devPos >= 0) {
+						ids.x = hwid.get_slicec('&', 0).lstrip("PCI\\VEN_").hex_to_int();
+						ids.y = hwid.get_slicec('&', 1).lstrip("DEV_").hex_to_int();
+					}
+				}
 			}
 		}
 	}
 
-	SAFE_RELEASE(wbemServices)
-	SAFE_RELEASE(iter)
+	SetupDiDestroyDeviceInfoList(hDevInfo);
 
 	return ids;
 }
