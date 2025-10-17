@@ -50,7 +50,7 @@ void main() {
 
 					float solid_angle_sample = 1.0 / (float(params.sample_count) * pdf + 0.0001);
 
-					float mipLevel = params.roughness == 0.0 ? 0.0 : 0.5 * log2(solid_angle_sample / solid_angle_texel);
+					float mipLevel = 0.0; //params.roughness == 0.0 ? 0.0 : 0.5 * log2(solid_angle_sample / solid_angle_texel);
 
 					vec2 sample_uv = vec3_to_oct_with_border(L, inv_source_size * pow(2.0f, mipLevel));
 					sum.rgb += textureLod(source_oct, sample_uv, mipLevel).rgb * ndotl;

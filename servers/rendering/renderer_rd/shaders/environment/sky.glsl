@@ -240,10 +240,10 @@ void main() {
 #ifdef USE_CUBEMAP_PASS
 
 #ifdef USES_HALF_RES_COLOR
-	half_res_color = texture(sampler2D(half_res, SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3_to_oct_with_border(cube_normal, params.pixel_size)) / params.luminance_multiplier;
+	half_res_color = textureLod(sampler2D(half_res, SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3_to_oct_with_border(cube_normal, params.pixel_size), 0.0) / params.luminance_multiplier;
 #endif
 #ifdef USES_QUARTER_RES_COLOR
-	quarter_res_color = texture(sampler2D(quarter_res, SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3_to_oct_with_border(cube_normal, params.pixel_size)) / params.luminance_multiplier;
+	quarter_res_color = textureLod(sampler2D(quarter_res, SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3_to_oct_with_border(cube_normal, params.pixel_size), 0.0) / params.luminance_multiplier;
 #endif
 
 #else

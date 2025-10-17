@@ -6,20 +6,29 @@ vec3 oct_to_vec3(vec2 e) {
 	return normalize(v);
 }
 
+const float border_pixels = 2.0;
+const float border_pixels_half = 1.0;
+
 vec3 oct_to_vec3_with_border(vec2 uv, vec2 pixel_size) {
-	if (uv.x < pixel_size.x || uv.x > (1.0 - pixel_size.x)) {
+	bool flipped = false;
+	if (uv.x < pixel_size.x * border_pixels_half || uv.x > (1.0 - pixel_size.x * border_pixels_half)) {
 		// Flip vertically if it's the left or right border.
 		uv.y = 1.0 - uv.y;
+		flipped = true;
 	}
 
-	if (uv.y < pixel_size.y || uv.y > (1.0 - pixel_size.y)) {
+	if (uv.y < pixel_size.y * border_pixels_half || uv.y > (1.0 - pixel_size.y * border_pixels_half)) {
 		// Flip horizontally if it's the top or bottom border.
 		uv.x = 1.0 - uv.x;
+		flipped = true;
 	}
 
-	vec2 texture_size = vec2(1.0) - pixel_size * 3.0;
-	uv -= pixel_size * 1.5;
-	uv /= texture_size;
+	if (!flipped) {
+		vec2 texture_size = vec2(1.0) - pixel_size * border_pixels;
+		uv -= pixel_size * border_pixels_half;
+		uv /= texture_size;
+	}
+
 	return oct_to_vec3(clamp(uv * 2.0 - 1.0, -1.0, 1.0));
 }
 
@@ -46,8 +55,8 @@ vec2 vec3_to_oct(vec3 n) {
 
 vec2 vec3_to_oct_with_border_and_gradient(vec3 n, vec2 border_size, bool gradient) {
 	vec2 uv = vec3_to_oct_with_gradient(n, gradient);
-	vec2 texture_size = vec2(1.0) - border_size * 3.0;
-	return uv * texture_size + border_size * 1.5;
+	vec2 texture_size = vec2(1.0) - border_size * border_pixels;
+	return uv * texture_size + border_size * border_pixels_half;
 }
 
 vec2 vec3_to_oct_with_border(vec3 n, vec2 border_size) {

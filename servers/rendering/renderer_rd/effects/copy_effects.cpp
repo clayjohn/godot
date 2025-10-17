@@ -1084,9 +1084,15 @@ void CopyEffects::octmap_downsample(RID p_source_octmap, RID p_dest_octmap, cons
 	ERR_FAIL_NULL(material_storage);
 
 	octmap_downsampler.push_constant.size = p_size.x;
+	RD::SamplerState shadow_sampler_state;
+	shadow_sampler_state.mag_filter = RD::SAMPLER_FILTER_LINEAR;
+	shadow_sampler_state.min_filter = RD::SAMPLER_FILTER_LINEAR;
+	shadow_sampler_state.max_lod = 0.0;
+	shadow_sampler_state.repeat_u = RD::SAMPLER_REPEAT_MODE_MIRRORED_REPEAT;
+	shadow_sampler_state.repeat_v = RD::SAMPLER_REPEAT_MODE_MIRRORED_REPEAT;
 
 	// setup our uniforms
-	RID default_sampler = material_storage->sampler_rd_get_default(RS::CANVAS_ITEM_TEXTURE_FILTER_LINEAR, RS::CANVAS_ITEM_TEXTURE_REPEAT_DISABLED);
+	RID default_sampler = RD::get_singleton()->sampler_create(shadow_sampler_state);
 
 	RD::Uniform u_source_octmap(RD::UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 0, Vector<RID>({ default_sampler, p_source_octmap }));
 	RD::Uniform u_dest_octmap(RD::UNIFORM_TYPE_IMAGE, 0, Vector<RID>({ p_dest_octmap }));
@@ -1250,8 +1256,15 @@ void CopyEffects::octmap_roughness(RID p_source_rd_texture, RID p_dest_texture, 
 	roughness.push_constant.dest_size = p_dest_size;
 	roughness.push_constant.use_direct_write = p_roughness == 0.0;
 
+	RD::SamplerState shadow_sampler_state;
+	shadow_sampler_state.mag_filter = RD::SAMPLER_FILTER_LINEAR;
+	shadow_sampler_state.min_filter = RD::SAMPLER_FILTER_LINEAR;
+	shadow_sampler_state.mip_filter = RD::SAMPLER_FILTER_LINEAR;
+	shadow_sampler_state.repeat_u = RD::SAMPLER_REPEAT_MODE_MIRRORED_REPEAT;
+	shadow_sampler_state.repeat_v = RD::SAMPLER_REPEAT_MODE_MIRRORED_REPEAT;
+
 	// setup our uniforms
-	RID default_mipmap_sampler = material_storage->sampler_rd_get_default(RS::CANVAS_ITEM_TEXTURE_FILTER_LINEAR_WITH_MIPMAPS, RS::CANVAS_ITEM_TEXTURE_REPEAT_DISABLED);
+	RID default_mipmap_sampler = RD::get_singleton()->sampler_create(shadow_sampler_state);
 
 	RD::Uniform u_source_rd_texture(RD::UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 0, Vector<RID>({ default_mipmap_sampler, p_source_rd_texture }));
 	RD::Uniform u_dest_texture(RD::UNIFORM_TYPE_IMAGE, 0, Vector<RID>({ p_dest_texture }));
@@ -1291,8 +1304,15 @@ void CopyEffects::octmap_roughness_raster(RID p_source_rd_texture, RID p_dest_fr
 	roughness.push_constant.dest_size = p_dest_size;
 	roughness.push_constant.use_direct_write = p_roughness == 0.0;
 
+	RD::SamplerState shadow_sampler_state;
+	shadow_sampler_state.mag_filter = RD::SAMPLER_FILTER_LINEAR;
+	shadow_sampler_state.min_filter = RD::SAMPLER_FILTER_LINEAR;
+	shadow_sampler_state.mip_filter = RD::SAMPLER_FILTER_LINEAR;
+	shadow_sampler_state.repeat_u = RD::SAMPLER_REPEAT_MODE_MIRRORED_REPEAT;
+	shadow_sampler_state.repeat_v = RD::SAMPLER_REPEAT_MODE_MIRRORED_REPEAT;
+
 	// Setup our uniforms.
-	RID default_sampler = material_storage->sampler_rd_get_default(RS::CANVAS_ITEM_TEXTURE_FILTER_LINEAR_WITH_MIPMAPS, RS::CANVAS_ITEM_TEXTURE_REPEAT_DISABLED);
+	RID default_sampler = RD::get_singleton()->sampler_create(shadow_sampler_state);
 
 	RD::Uniform u_source_rd_texture(RD::UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 0, Vector<RID>({ default_sampler, p_source_rd_texture }));
 

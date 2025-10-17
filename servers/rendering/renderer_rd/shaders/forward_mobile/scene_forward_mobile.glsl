@@ -996,6 +996,25 @@ layout(location = 0) out vec4 frag_color;
 
 #ifndef MODE_RENDER_DEPTH
 
+float oct_approx_lod(vec3 n, vec2 tex_size) {
+	vec3 dn_dx = dFdx(n);
+	vec3 dn_dy = dFdy(n);
+
+	// approximate uv-space derivatives (octahedral roughly scales ~0.5)
+	// use 0.5 factor because vec3_to_oct maps [-1,1] -> [0,1]
+	float dudx = 0.5 * length(dn_dx);
+	float dudy = 0.5 * length(dn_dy);
+
+	// map to texel-space derivatives
+	dudx /= tex_size.x;
+	dudy /= tex_size.y;
+
+	float maxRate = max(dudx, dudy) * 0.75;
+
+	float lod = log2(maxRate + 1e-6);
+	return lod;
+}
+
 /*
 	Only supporting normal fog here.
 */
@@ -1011,11 +1030,14 @@ hvec4 fog_process(vec3 vertex) {
 #ifdef USE_RADIANCE_OCTMAP_ARRAY
 		float lod, blend;
 		blend = modf(mip_level * MAX_ROUGHNESS_LOD, lod);
-		vec3 sky_sample_a = texture(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(vec3_to_oct_with_border(cube_view, scene_data_block.data.radiance_pixel_size), lod)).rgb;
-		vec3 sky_sample_b = texture(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(vec3_to_oct_with_border(cube_view, scene_data_block.data.radiance_pixel_size), lod + 1)).rgb;
+
+		float distance_lod = oct_approx_lod(ref_vec, scene_data_block.data.radiance_pixel_size);
+		vec2 ref_uv = vec3_to_oct_with_border(ref_vec, scene_data_block.data.radiance_pixel_size * pow(2.0f, distance_lod));
+		vec3 sky_sample_a = textureLod(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(ref_uv, lod), distance_lod).rgb;
+		vec3 sky_sample_b = textureLod(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(ref_uv, lod + 1), distance_lod).rgb;
 		sky_fog_color = mix(sky_sample_a, sky_sample_b, blend);
 #else
-		sky_fog_color = textureLod(sampler2D(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3_to_oct_with_border(cube_view, scene_data_block.data.radiance_pixel_size), mip_level * MAX_ROUGHNESS_LOD).rgb;
+		sky_fog_color = textureLod(sampler2D(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3_to_oct_with_border(cube_view, scene_data_block.data.radiance_pixel_size * pow(2.0f, mip_level * MAX_ROUGHNESS_LOD)), mip_level * MAX_ROUGHNESS_LOD).rgb;
 #endif //USE_RADIANCE_OCTMAP_ARRAY
 		fog_color = mix(fog_color, sky_fog_color, scene_data_block.data.fog_aerial_perspective);
 	}
@@ -1546,12 +1568,15 @@ void main() {
 #ifdef USE_RADIANCE_OCTMAP_ARRAY
 		float lod;
 		half blend = half(modf(float(sqrt(roughness) * half(MAX_ROUGHNESS_LOD)), lod));
-		hvec3 indirect_sample_a = hvec3(texture(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(vec3_to_oct_with_border(ref_vec, scene_data_block.data.radiance_pixel_size), float(lod))).rgb);
-		hvec3 indirect_sample_b = hvec3(texture(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(vec3_to_oct_with_border(ref_vec, scene_data_block.data.radiance_pixel_size), float(lod) + 1.0)).rgb);
+
+		float distance_lod = oct_approx_lod(ref_vec, scene_data_block.data.radiance_pixel_size);
+		vec2 ref_uv = vec3_to_oct_with_border(ref_vec, scene_data_block.data.radiance_pixel_size * pow(2.0f, distance_lod));
+		hvec3 indirect_sample_a = hvec3(textureLod(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(ref_uv, lod), distance_lod).rgb);
+		hvec3 indirect_sample_b = hvec3(textureLod(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(ref_uv, lod + 1), distance_lod).rgb);
 		indirect_specular_light = mix(indirect_sample_a, indirect_sample_b, blend);
 #else // USE_RADIANCE_OCTMAP_ARRAY
 		float lod = sqrt(roughness) * half(MAX_ROUGHNESS_LOD);
-		indirect_specular_light = hvec3(textureLod(sampler2D(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3_to_oct_with_border(ref_vec, scene_data_block.data.radiance_pixel_size), lod).rgb);
+		indirect_specular_light = hvec3(textureLod(sampler2D(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3_to_oct_with_border(ref_vec, scene_data_block.data.radiance_pixel_size * pow(2.0f, lod)), lod).rgb);
 #endif //USE_RADIANCE_OCTMAP_ARRAY
 		indirect_specular_light *= sc_luminance_multiplier();
 		indirect_specular_light *= half(scene_data.IBL_exposure_normalization);
@@ -1571,9 +1596,11 @@ void main() {
 		if (sc_scene_use_ambient_cubemap()) {
 			vec3 ambient_dir = scene_data.radiance_inverse_xform * indirect_normal;
 #ifdef USE_RADIANCE_OCTMAP_ARRAY
-			hvec3 octmap_ambient = hvec3(texture(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(vec3_to_oct_with_border(ambient_dir, scene_data_block.data.radiance_pixel_size), MAX_ROUGHNESS_LOD)).rgb);
+			float distance_lod = oct_approx_lod(ambient_dir, scene_data_block.data.radiance_pixel_size);
+			vec2 ambient_uv = vec3_to_oct_with_border(ambient_dir, scene_data_block.data.radiance_pixel_size * pow(2.0f, distance_lod));
+			hvec3 octmap_ambient = hvec3(textureLod(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(ambient_uv, MAX_ROUGHNESS_LOD), distance_lod).rgb);
 #else
-			hvec3 octmap_ambient = hvec3(textureLod(sampler2D(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3_to_oct_with_border(ambient_dir, scene_data_block.data.radiance_pixel_size), MAX_ROUGHNESS_LOD).rgb);
+			hvec3 octmap_ambient = hvec3(textureLod(sampler2D(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3_to_oct_with_border(ambient_dir, scene_data_block.data.radiance_pixel_size * pow(2.0f, MAX_ROUGHNESS_LOD)), MAX_ROUGHNESS_LOD).rgb);
 #endif //USE_RADIANCE_OCTMAP_ARRAY
 			octmap_ambient *= sc_luminance_multiplier();
 			octmap_ambient *= half(scene_data.IBL_exposure_normalization);
@@ -1603,11 +1630,14 @@ void main() {
 #ifdef USE_RADIANCE_OCTMAP_ARRAY
 		float lod;
 		half blend = half(modf(roughness_lod, lod));
-		hvec3 clearcoat_sample_a = hvec3(texture(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(vec3_to_oct_with_border(ref_vec, scene_data_block.data.radiance_pixel_size), lod)).rgb);
-		hvec3 clearcoat_sample_b = hvec3(texture(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(vec3_to_oct_with_border(ref_vec, scene_data_block.data.radiance_pixel_size), lod + 1)).rgb);
+
+		float distance_lod = oct_approx_lod(ref_vec, scene_data_block.data.radiance_pixel_size);
+		vec2 ref_uv = vec3_to_oct_with_border(ref_vec, scene_data_block.data.radiance_pixel_size * pow(2.0f, distance_lod));
+		hvec3 clearcoat_sample_a = hvec3(textureLod(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(ref_uv, lod), distance_lod).rgb);
+		hvec3 clearcoat_sample_b = hvec3(textureLod(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(ref_uv, lod + 1), distance_lod).rgb);
 		hvec3 clearcoat_light = mix(clearcoat_sample_a, clearcoat_sample_b, blend);
 #else
-		hvec3 clearcoat_light = hvec3(textureLod(sampler2D(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3_to_oct_with_border(ref_vec, scene_data_block.data.radiance_pixel_size), roughness_lod).rgb);
+		hvec3 clearcoat_light = hvec3(textureLod(sampler2D(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3_to_oct_with_border(ref_vec, scene_data_block.data.radiance_pixel_size * pow(2.0f, roughness_lod)), roughness_lod).rgb);
 #endif //USE_RADIANCE_OCTMAP_ARRAY
 		indirect_specular_light += clearcoat_light * horizon * horizon * Fc * half(scene_data.ambient_light_color_energy.a);
 	}
