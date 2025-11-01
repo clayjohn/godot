@@ -24,20 +24,8 @@ struct InstanceData {
 	vec2 world_ofs;
 	uint flags;
 	uint instance_uniforms_ofs;
-#ifdef USE_PRIMITIVE
-	vec2 points[3];
-	vec2 uvs[3];
-	uint colors[6];
-#else
-	vec4 modulation;
-	vec4 ninepatch_margins;
 	vec4 dst_rect; //for built-in rect and UV
-	vec4 src_rect;
-	vec2 pad;
-
-#endif
-	vec2 color_texture_pixel_size;
-	uvec4 lights;
+	uvec4 modulation;
 };
 
 //1 means enabled, 2+ means trails in use
@@ -49,12 +37,18 @@ struct InstanceData {
 
 #define BATCH_FLAGS_DEFAULT_NORMAL_MAP_USED (1 << 9)
 #define BATCH_FLAGS_DEFAULT_SPECULAR_MAP_USED (1 << 10)
+#define BATCH_FLAGS_USE_MSDF (1 << 11)
 
 layout(push_constant, std430) uniform Params {
 	uint base_instance_index; // base index to instance data
 	uint sc_packed_0;
 	uint specular_shininess;
 	uint batch_flags;
+
+	vec2 msdf; // make uniform since it is a font setting
+	vec2 color_texture_pixel_size; // Already uniform across draw call
+
+	uvec4 lights;
 }
 params;
 

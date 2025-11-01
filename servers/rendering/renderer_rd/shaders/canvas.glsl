@@ -119,9 +119,11 @@ void main() {
 	vec2 vertex_base_arr[4] = vec2[](vec2(0.0, 0.0), vec2(0.0, 1.0), vec2(1.0, 1.0), vec2(1.0, 0.0));
 	vec2 vertex_base = vertex_base_arr[gl_VertexIndex];
 
-	vec2 uv = draw_data.src_rect.xy + abs(draw_data.src_rect.zw) * ((draw_data.flags & INSTANCE_FLAGS_TRANSPOSE_RECT) != 0 ? vertex_base.yx : vertex_base.xy);
-	vec4 color = draw_data.modulation;
-	vec2 vertex = draw_data.dst_rect.xy + abs(draw_data.dst_rect.zw) * mix(vertex_base, vec2(1.0, 1.0) - vertex_base, lessThan(draw_data.src_rect.zw, vec2(0.0, 0.0)));
+	vec4 src_rect = vec4(unpackHalf2x16(draw_data.modulation.z), unpackHalf2x16(draw_data.modulation.w));
+
+	vec2 uv = src_rect.xy + abs(src_rect.zw) * ((draw_data.flags & INSTANCE_FLAGS_TRANSPOSE_RECT) != 0 ? vertex_base.yx : vertex_base.xy);
+	vec4 color = vec4(unpackHalf2x16(draw_data.modulation.x), unpackHalf2x16(draw_data.modulation.y));
+	vec2 vertex = draw_data.dst_rect.xy + abs(draw_data.dst_rect.zw) * mix(vertex_base, vec2(1.0, 1.0) - vertex_base, lessThan(src_rect.zw, vec2(0.0, 0.0)));
 	uvec4 bones = uvec4(0, 0, 0, 0);
 
 #endif // USE_ATTRIBUTES
@@ -475,10 +477,11 @@ void main() {
 
 	const InstanceData draw_data = instances.data[instance_index];
 
+	vec4 src_rect = vec4(unpackHalf2x16(draw_data.modulation.z), unpackHalf2x16(draw_data.modulation.w));
 #if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE)
-	vec4 region_rect = draw_data.src_rect;
+	vec4 region_rect = vec4(unpackHalf2x16(draw_data.modulation.z), unpackHalf2x16(draw_data.modulation.w));
 #else
-	vec4 region_rect = vec4(0.0, 0.0, 1.0 / draw_data.color_texture_pixel_size);
+	vec4 region_rect = vec4(0.0, 0.0, 1.0 / params.color_texture_pixel_size);
 #endif
 
 #if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE)
@@ -487,53 +490,53 @@ void main() {
 
 	int draw_center = 2;
 	uv = vec2(
-			map_ninepatch_axis(pixel_size_interp.x, abs(draw_data.dst_rect.z), draw_data.color_texture_pixel_size.x, draw_data.ninepatch_margins.x, draw_data.ninepatch_margins.z, int(bitfieldExtract(draw_data.flags, INSTANCE_FLAGS_NINEPATCH_H_MODE_SHIFT, 2)), draw_center),
-			map_ninepatch_axis(pixel_size_interp.y, abs(draw_data.dst_rect.w), draw_data.color_texture_pixel_size.y, draw_data.ninepatch_margins.y, draw_data.ninepatch_margins.w, int(bitfieldExtract(draw_data.flags, INSTANCE_FLAGS_NINEPATCH_V_MODE_SHIFT, 2)), draw_center));
+			map_ninepatch_axis(pixel_size_interp.x, abs(draw_data.dst_rect.z), params.color_texture_pixel_size.x, draw_data.ninepatch_margins.x, draw_data.ninepatch_margins.z, int(bitfieldExtract(draw_data.flags, INSTANCE_FLAGS_NINEPATCH_H_MODE_SHIFT, 2)), draw_center),
+			map_ninepatch_axis(pixel_size_interp.y, abs(draw_data.dst_rect.w), params.color_texture_pixel_size.y, draw_data.ninepatch_margins.y, draw_data.ninepatch_margins.w, int(bitfieldExtract(draw_data.flags, INSTANCE_FLAGS_NINEPATCH_V_MODE_SHIFT, 2)), draw_center));
 
 	if (draw_center == 0) {
 		color.a = 0.0;
 	}
 
-	uv = uv * draw_data.src_rect.zw + draw_data.src_rect.xy; //apply region if needed
+	uv = uv * src_rect.zw + src_rect.xy; //apply region if needed
 
 #endif
 	if (bool(draw_data.flags & INSTANCE_FLAGS_CLIP_RECT_UV)) {
-		vec2 half_texpixel = draw_data.color_texture_pixel_size * 0.5;
-		uv = clamp(uv, draw_data.src_rect.xy + half_texpixel, draw_data.src_rect.xy + abs(draw_data.src_rect.zw) - half_texpixel);
+		vec2 half_texpixel = params.color_texture_pixel_size * 0.5;
+		uv = clamp(uv, src_rect.xy + half_texpixel, src_rect.xy + abs(src_rect.zw) - half_texpixel);
 	}
 
 #endif
 
 #ifndef USE_PRIMITIVE
-	if (bool(draw_data.flags & INSTANCE_FLAGS_USE_MSDF)) {
-		float px_range = draw_data.ninepatch_margins.x;
-		float outline_thickness = draw_data.ninepatch_margins.y;
-		//float reserved1 = draw_data.ninepatch_margins.z;
-		//float reserved2 = draw_data.ninepatch_margins.w;
+	/*
+		if (bool(params.batch_flags & BATCH_FLAGS_USE_MSDF)) {
+			float px_range = params.msdf.x;
+			float outline_thickness = params.msdf.y;
 
-		vec4 msdf_sample = texture(sampler2D(color_texture, texture_sampler), uv);
-		vec2 msdf_size = vec2(textureSize(sampler2D(color_texture, texture_sampler), 0));
-		vec2 dest_size = vec2(1.0) / fwidth(uv);
-		float px_size = max(0.5 * dot((vec2(px_range) / msdf_size), dest_size), 1.0);
-		float d = msdf_median(msdf_sample.r, msdf_sample.g, msdf_sample.b);
+			vec4 msdf_sample = texture(sampler2D(color_texture, texture_sampler), uv);
+			vec2 msdf_size = vec2(textureSize(sampler2D(color_texture, texture_sampler), 0));
+			vec2 dest_size = vec2(1.0) / fwidth(uv);
+			float px_size = max(0.5 * dot((vec2(px_range) / msdf_size), dest_size), 1.0);
+			float d = msdf_median(msdf_sample.r, msdf_sample.g, msdf_sample.b);
 
-		if (outline_thickness > 0) {
-			float cr = clamp(outline_thickness, 0.0, (px_range / 2.0) - 1.0) / px_range;
-			d = min(d, msdf_sample.a);
-			float a = clamp((d - 0.5 + cr) * px_size, 0.0, 1.0);
-			color.a = a * color.a;
-		} else {
-			float a = clamp((d - 0.5) * px_size + 0.5, 0.0, 1.0);
-			color.a = a * color.a;
-		}
-	} else if (bool(draw_data.flags & INSTANCE_FLAGS_USE_LCD)) {
-		vec4 lcd_sample = texture(sampler2D(color_texture, texture_sampler), uv);
-		if (lcd_sample.a == 1.0) {
-			color.rgb = lcd_sample.rgb * color.a;
-		} else {
-			color = vec4(0.0, 0.0, 0.0, 0.0);
-		}
-	} else {
+			if (outline_thickness > 0) {
+				float cr = clamp(outline_thickness, 0.0, (px_range / 2.0) - 1.0) / px_range;
+				d = min(d, msdf_sample.a);
+				float a = clamp((d - 0.5 + cr) * px_size, 0.0, 1.0);
+				color.a = a * color.a;
+			} else {
+				float a = clamp((d - 0.5) * px_size + 0.5, 0.0, 1.0);
+				color.a = a * color.a;
+			}
+		} else if (bool(draw_data.flags & INSTANCE_FLAGS_USE_LCD)) {
+			vec4 lcd_sample = texture(sampler2D(color_texture, texture_sampler), uv);
+			if (lcd_sample.a == 1.0) {
+				color.rgb = lcd_sample.rgb * color.a;
+			} else {
+				color = vec4(0.0, 0.0, 0.0, 0.0);
+			}
+		} else*/
+	{
 #else
 	{
 #endif
@@ -558,7 +561,7 @@ void main() {
 		if (bool(draw_data.flags & INSTANCE_FLAGS_TRANSPOSE_RECT)) {
 			normal.xy = normal.yx;
 		}
-		normal.xy *= sign(draw_data.src_rect.zw);
+		normal.xy *= sign(src_rect.zw);
 #endif
 		normal.z = sqrt(max(0.0, 1.0 - dot(normal.xy, normal.xy)));
 		normal_used = true;
@@ -671,7 +674,7 @@ void main() {
 			if (i >= light_count) {
 				break;
 			}
-			uint light_base = bitfieldExtract(draw_data.lights[i >> 2], (int(i) & 0x3) * 8, 8);
+			uint light_base = bitfieldExtract(params.lights[i >> 2], (int(i) & 0x3) * 8, 8);
 
 			vec2 tex_uv = (vec4(vertex, 0.0, 1.0) * mat4(light_array.data[light_base].texture_matrix[0], light_array.data[light_base].texture_matrix[1], vec4(0.0, 0.0, 1.0, 0.0), vec4(0.0, 0.0, 0.0, 1.0))).xy; //multiply inverse given its transposed. Optimizer removes useless operations.
 			vec2 tex_uv_atlas = tex_uv * light_array.data[light_base].atlas_rect.zw + light_array.data[light_base].atlas_rect.xy;

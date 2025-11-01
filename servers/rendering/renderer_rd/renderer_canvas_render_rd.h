@@ -67,7 +67,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 
 		INSTANCE_FLAGS_CLIP_RECT_UV = (1 << 4),
 		INSTANCE_FLAGS_TRANSPOSE_RECT = (1 << 5),
-		INSTANCE_FLAGS_USE_MSDF = (1 << 6),
+		//INSTANCE_FLAGS_USE_MSDF = (1 << 6),
 		INSTANCE_FLAGS_USE_LCD = (1 << 7),
 
 		INSTANCE_FLAGS_NINEPACH_DRAW_CENTER = (1 << 8),
@@ -84,6 +84,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 
 		BATCH_FLAGS_DEFAULT_NORMAL_MAP_USED = (1 << 9),
 		BATCH_FLAGS_DEFAULT_SPECULAR_MAP_USED = (1 << 10),
+		BATCH_FLAGS_USE_MSDF = (1 << 11),
 	};
 
 	enum {
@@ -350,7 +351,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 
 	//state that does not vary across rendering all items
 
-	struct InstanceData {
+	/*struct InstanceData {
 		float world[6];
 		uint32_t flags;
 		uint32_t instance_uniforms_ofs;
@@ -375,13 +376,27 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 		};
 		float color_texture_pixel_size[2];
 		uint32_t lights[4];
-	};
+	};*/
+
+	struct InstanceData {
+		float world[6];
+		uint32_t flags;
+		uint32_t instance_uniforms_ofs;
+		float dst_rect[4];
+		//half_float src_rect[4];
+		uint32_t modulation[4];
+	}; // 64 bytes
 
 	struct PushConstant {
 		uint32_t base_instance_index;
 		ShaderSpecialization shader_specialization;
 		uint32_t specular_shininess;
 		uint32_t batch_flags;
+
+		float msdf[2]; // make uniform since it is a font setting
+		float color_texture_pixel_size[2]; // Already uniform across draw call
+
+		uint32_t lights[4];
 	};
 
 	// TextureState is used to determine when a new batch is required due to a change of texture state.
@@ -506,6 +521,11 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 		TextureInfo *tex_info;
 
 		Color modulate = Color(1.0, 1.0, 1.0, 1.0);
+
+		float msdf[2]; // make uniform since it is a font setting
+		float color_texture_pixel_size[2]; // Already uniform across draw call
+
+		uint32_t lights[4];
 
 		Item *clip = nullptr;
 
