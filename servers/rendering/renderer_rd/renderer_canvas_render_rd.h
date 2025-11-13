@@ -67,7 +67,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 
 		INSTANCE_FLAGS_CLIP_RECT_UV = (1 << 4),
 		INSTANCE_FLAGS_TRANSPOSE_RECT = (1 << 5),
-		INSTANCE_FLAGS_USE_MSDF = (1 << 6),
+		//INSTANCE_FLAGS_USE_MSDF = (1 << 6),
 		INSTANCE_FLAGS_USE_LCD = (1 << 7),
 
 		INSTANCE_FLAGS_NINEPACH_DRAW_CENTER = (1 << 8),
@@ -84,6 +84,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 
 		BATCH_FLAGS_DEFAULT_NORMAL_MAP_USED = (1 << 9),
 		BATCH_FLAGS_DEFAULT_SPECULAR_MAP_USED = (1 << 10),
+		BATCH_FLAGS_USE_MSDF = (1 << 11),
 	};
 
 	enum {
@@ -120,6 +121,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 
 			struct {
 				uint32_t use_lighting : 1;
+				uint32_t use_msdf : 1;
 			};
 		};
 	};
@@ -354,50 +356,30 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 
 	struct InstanceData {
 		float world[6];
-		float color_texture_pixel_size[2];
-		union {
-			//rect
-			struct {
-				float modulation[4];
-				union {
-					float msdf[4];
-					float ninepatch_margins[4];
-				};
-				float dst_rect[4];
-				float src_rect[4];
-				float pad[2];
-			};
-			//primitive
-			struct {
-				float points[6]; // vec2 points[3]
-				float uvs[6]; // vec2 points[3]
-				uint32_t colors[6]; // colors encoded as half
-			};
-		};
 		uint32_t flags;
 		uint32_t instance_uniforms_ofs;
-		uint32_t lights[4];
+		float dst_rect[4];
+		uint32_t modulation[4];
 	};
 
-	static_assert(sizeof(InstanceData) == 128, "2D instance data struct size must be 128 bytes");
+	static_assert(sizeof(InstanceData) == 64, "2D instance data struct size must be 64 bytes");
 
 	struct PushConstant {
 		ShaderSpecialization shader_specialization;
 		uint32_t specular_shininess;
 		uint32_t batch_flags;
 		uint32_t pad0;
+		float msdf[2]; // make uniform since it is a font setting
+		float color_texture_pixel_size[2]; // Already uniform across draw call
 	};
 
 	struct PushConstantAttributes {
 		PushConstant base;
 
 		float world[6];
-		float color_texture_pixel_size[2];
-		float modulation[4];
-		uint32_t lights[4];
 		uint32_t flags;
 		uint32_t instance_uniforms_ofs;
-		uint32_t pad1[2];
+		float modulation[4];
 
 		operator PushConstant &() {
 			return base;
@@ -528,6 +510,9 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 
 		Color modulate = Color(1.0, 1.0, 1.0, 1.0);
 
+		float msdf[2]; // make uniform since it is a font setting
+		float color_texture_pixel_size[2]; // Already uniform across draw call
+
 		Item *clip = nullptr;
 
 		RID material;
@@ -553,6 +538,10 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 			PushConstant pc;
 			pc.specular_shininess = tex_info->specular_shininess;
 			pc.batch_flags = tex_info->flags | flags;
+			pc.msdf[0] = msdf[0];
+			pc.msdf[1] = msdf[1];
+			pc.color_texture_pixel_size[0] = tex_info->texpixel_size.x;
+			pc.color_texture_pixel_size[1] = tex_info->texpixel_size.y;
 			pc.pad0 = 0;
 			return pc;
 		}
@@ -561,9 +550,9 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 			PushConstantAttributes pc;
 			pc.base = push_constant();
 			memcpy(pc.world, push_data.world, sizeof(pc.world));
-			memcpy(pc.color_texture_pixel_size, push_data.color_texture_pixel_size, sizeof(pc.color_texture_pixel_size));
+			//memcpy(pc.color_texture_pixel_size, push_data.color_texture_pixel_size, sizeof(pc.color_texture_pixel_size));
 			memcpy(pc.modulation, push_data.modulation, sizeof(pc.modulation));
-			memcpy(pc.lights, push_data.lights, sizeof(pc.lights));
+			//memcpy(pc.lights, push_data.lights, sizeof(pc.lights));
 			pc.flags = push_data.flags;
 			pc.instance_uniforms_ofs = push_data.instance_uniforms_ofs;
 			return pc;

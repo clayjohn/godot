@@ -1749,11 +1749,11 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 		for (uint32_t ubershader = 0; ubershader < ubershader_iterations; ubershader++) {
 			const String base_define = ubershader ? "\n#define UBERSHADER\n" : "";
 			variants.push_back(base_define + ""); // SHADER_VARIANT_QUAD
-			variants.push_back(base_define + "#define USE_NINEPATCH\n"); // SHADER_VARIANT_NINEPATCH
-			variants.push_back(base_define + "#define USE_PRIMITIVE\n"); // SHADER_VARIANT_PRIMITIVE
-			variants.push_back(base_define + "#define USE_PRIMITIVE\n#define USE_POINT_SIZE\n"); // SHADER_VARIANT_PRIMITIVE_POINTS
-			variants.push_back(base_define + "#define USE_ATTRIBUTES\n"); // SHADER_VARIANT_ATTRIBUTES
-			variants.push_back(base_define + "#define USE_ATTRIBUTES\n#define USE_POINT_SIZE\n"); // SHADER_VARIANT_ATTRIBUTES_POINTS
+			variants.push_back(base_define + ""); // SHADER_VARIANT_NINEPATCH
+			variants.push_back(base_define + ""); // SHADER_VARIANT_PRIMITIVE
+			variants.push_back(base_define + ""); // SHADER_VARIANT_PRIMITIVE_POINTS
+			variants.push_back(base_define + ""); // SHADER_VARIANT_ATTRIBUTES
+			variants.push_back(base_define + ""); // SHADER_VARIANT_ATTRIBUTES_POINTS
 		}
 
 		shader.canvas_shader.initialize(variants, global_defines, {}, {});
@@ -1961,57 +1961,45 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 		Vector<RD::VertexAttribute> vf;
 		uint32_t offset = 0;
 		RD::VertexAttribute vd;
-		vd.format = RD::DATA_FORMAT_R32G32B32A32_SFLOAT;
+
 		vd.stride = sizeof(InstanceData);
 		vd.frequency = RD::VERTEX_FREQUENCY_INSTANCE;
+
 		vd.location = 8;
+		vd.format = RD::DATA_FORMAT_R32G32B32A32_SFLOAT;
 		vd.binding = 0; // Explicitly assign binding 0 for instance data.
 		vd.offset = offset;
 		offset += sizeof(float) * 4;
 		vf.push_back(vd); // attrib_A
 
 		vd.location = 9;
+		vd.format = RD::DATA_FORMAT_R32G32_SFLOAT;
 		vd.offset = offset;
-		offset += sizeof(float) * 4;
+		offset += sizeof(float) * 2;
 		vf.push_back(vd); // attrib_B
 
 		vd.location = 10;
+		vd.format = RD::DATA_FORMAT_R32G32_UINT;
 		vd.offset = offset;
-		offset += sizeof(float) * 4;
+		offset += sizeof(uint32_t) * 2;
 		vf.push_back(vd); // attrib_C
 
 		vd.location = 11;
+		vd.format = RD::DATA_FORMAT_R32G32B32A32_SFLOAT;
 		vd.offset = offset;
 		offset += sizeof(float) * 4;
 		vf.push_back(vd); // attrib_D
 
 		vd.location = 12;
-		vd.offset = offset;
-		offset += sizeof(float) * 4;
-		vf.push_back(vd); // attrib_E
-
-		uint32_t attrib_F_index = vf.size();
-		vd.location = 13;
-		vd.offset = offset;
-		offset += sizeof(float) * 4;
-		vf.push_back(vd); // attrib_F (RECT, NINEPATCH)
-
 		vd.format = RD::DATA_FORMAT_R32G32B32A32_UINT;
-		vd.location = 14;
 		vd.offset = offset;
 		offset += sizeof(uint32_t) * 4;
-		vf.push_back(vd); // attrib_G
-
-		vd.location = 15;
-		vd.offset = offset;
-		offset += sizeof(uint32_t) * 4;
-		vf.push_back(vd); // attrib_H
+		vf.push_back(vd); // attrib_E
 
 		// RECT, NINEPATCH
 		shader.quad_vertex_format_id = RD::get_singleton()->vertex_format_create(vf);
 
 		// PRIMITIVE
-		vf.write[attrib_F_index].format = RD::DATA_FORMAT_R32G32B32A32_UINT;
 		shader.primitive_vertex_format_id = RD::get_singleton()->vertex_format_create(vf);
 	}
 
@@ -2364,9 +2352,9 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 
 		while (light) {
 			if (light->render_index_cache >= 0 && p_item->light_mask & light->item_mask && p_item->z_final >= light->z_min && p_item->z_final <= light->z_max && p_item->global_rect_cache.intersects(light->rect_cache)) {
-				uint32_t light_index = light->render_index_cache;
+				//uint32_t light_index = light->render_index_cache;
 				// TODO: consider making lights a per-batch property and then baking light operations in the shader for better performance.
-				template_instance.lights[light_count >> 2] |= light_index << ((light_count & 3) * 8);
+				//template_instance.lights[light_count >> 2] |= light_index << ((light_count & 3) * 8);
 
 				if (p_item->light_mask & light->item_shadow_mask) {
 					shadow_mask |= 1 << light_count;
@@ -2443,6 +2431,14 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 					_prepare_batch_texture_info(rect->texture, tex_state, tex_info);
 				}
 
+				if (has_msdf && !(r_current_batch->flags & BATCH_FLAGS_USE_MSDF)) {
+					r_current_batch = _new_batch(r_batch_broken);
+					r_current_batch->flags |= BATCH_FLAGS_USE_MSDF;
+					r_current_batch->msdf[0] = rect->px_range; // Pixel range.
+					r_current_batch->msdf[1] = rect->outline; // Outline size.
+					// TODO, should break on any msdf setting change
+				}
+
 				if (r_current_batch->tex_info != tex_info) {
 					r_current_batch = _new_batch(r_batch_broken);
 					r_current_batch->tex_info = tex_info;
@@ -2496,25 +2492,15 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 					src_rect = Rect2(0, 0, 1, 1);
 				}
 
-				if (has_msdf) {
-					instance_data->flags |= INSTANCE_FLAGS_USE_MSDF;
-					instance_data->msdf[0] = rect->px_range; // Pixel range.
-					instance_data->msdf[1] = rect->outline; // Outline size.
-					instance_data->msdf[2] = 0.f; // Reserved.
-					instance_data->msdf[3] = 0.f; // Reserved.
-				} else if (rect->flags & CANVAS_RECT_LCD) {
+				if (rect->flags & CANVAS_RECT_LCD) {
 					instance_data->flags |= INSTANCE_FLAGS_USE_LCD;
 				}
 
-				instance_data->modulation[0] = modulated.r;
-				instance_data->modulation[1] = modulated.g;
-				instance_data->modulation[2] = modulated.b;
-				instance_data->modulation[3] = modulated.a;
+				instance_data->modulation[0] = (uint32_t(Math::make_half_float(modulated.g)) << 16) | Math::make_half_float(modulated.r);
+				instance_data->modulation[1] = (uint32_t(Math::make_half_float(modulated.a)) << 16) | Math::make_half_float(modulated.b);
 
-				instance_data->src_rect[0] = src_rect.position.x;
-				instance_data->src_rect[1] = src_rect.position.y;
-				instance_data->src_rect[2] = src_rect.size.width;
-				instance_data->src_rect[3] = src_rect.size.height;
+				instance_data->modulation[2] = (uint32_t(Math::make_half_float(src_rect.position.y)) << 16) | Math::make_half_float(src_rect.position.x);
+				instance_data->modulation[3] = (uint32_t(Math::make_half_float(src_rect.size.height)) << 16) | Math::make_half_float(src_rect.size.width);
 
 				instance_data->dst_rect[0] = dst_rect.position.x;
 				instance_data->dst_rect[1] = dst_rect.position.y;
@@ -2525,6 +2511,7 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 			} break;
 
 			case Item::Command::TYPE_NINEPATCH: {
+				/*
 				const Item::CommandNinePatch *np = static_cast<const Item::CommandNinePatch *>(c);
 
 				if (r_current_batch->command_type != Item::Command::TYPE_NINEPATCH) {
@@ -2599,9 +2586,11 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 				instance_data->ninepatch_margins[3] = np->margin[SIDE_BOTTOM];
 
 				_add_to_batch(r_batch_broken, r_current_batch);
+				*/
 			} break;
 
 			case Item::Command::TYPE_POLYGON: {
+				/*
 				const Item::CommandPolygon *polygon = static_cast<const Item::CommandPolygon *>(c);
 
 				// Polygon's can't be batched, so always create a new batch
@@ -2642,9 +2631,11 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 				instance_data->modulation[1] = color.g;
 				instance_data->modulation[2] = color.b;
 				instance_data->modulation[3] = color.a;
+				*/
 			} break;
 
 			case Item::Command::TYPE_PRIMITIVE: {
+				/*
 				const Item::CommandPrimitive *primitive = static_cast<const Item::CommandPrimitive *>(c);
 
 				if (primitive->point_count != r_current_batch->primitive_points || r_current_batch->command_type != Item::Command::TYPE_PRIMITIVE) {
@@ -2726,11 +2717,13 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 
 					_add_to_batch(r_batch_broken, r_current_batch);
 				}
+					*/
 			} break;
 
 			case Item::Command::TYPE_MESH:
 			case Item::Command::TYPE_MULTIMESH:
 			case Item::Command::TYPE_PARTICLES: {
+				/*
 				// Mesh's can't be batched, so always create a new batch
 				r_current_batch = _new_batch(r_batch_broken);
 				r_current_batch->command = c;
@@ -2841,6 +2834,7 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 				instance_data->modulation[1] = modulated.g;
 				instance_data->modulation[2] = modulated.b;
 				instance_data->modulation[3] = modulated.a;
+				*/
 			} break;
 
 			case Item::Command::TYPE_TRANSFORM: {
@@ -2879,7 +2873,7 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 		r_batch_broken = false;
 	}
 
-#ifdef DEBUG_ENABLED
+#if 0
 	if (debug_redraw && p_item->debug_redraw_time > 0.0) {
 		Color dc = debug_redraw_color;
 		dc.a *= p_item->debug_redraw_time / debug_redraw_time;
@@ -3039,6 +3033,7 @@ void RendererCanvasRenderRD::_render_batch(RD::DrawListID p_draw_list, CanvasSha
 	pipeline_key.variant = p_batch->shader_variant;
 	pipeline_key.render_primitive = p_batch->render_primitive;
 	pipeline_key.shader_specialization.use_lighting = p_batch->use_lighting;
+	pipeline_key.shader_specialization.use_msdf = bool(p_batch->flags & BATCH_FLAGS_USE_MSDF);
 	pipeline_key.lcd_blend = p_batch->has_blend;
 
 	switch (p_batch->command_type) {
@@ -3225,8 +3220,8 @@ RendererCanvasRenderRD::InstanceData *RendererCanvasRenderRD::new_instance_data(
 	}
 
 	memcpy(instance_data, &template_instance, sizeof(InstanceData));
-	instance_data->color_texture_pixel_size[0] = p_current_batch.tex_info->texpixel_size.width;
-	instance_data->color_texture_pixel_size[1] = p_current_batch.tex_info->texpixel_size.height;
+	//instance_data->color_texture_pixel_size[0] = p_current_batch.tex_info->texpixel_size.width;
+	//instance_data->color_texture_pixel_size[1] = p_current_batch.tex_info->texpixel_size.height;
 	return instance_data;
 }
 
