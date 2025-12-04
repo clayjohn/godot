@@ -227,6 +227,7 @@
 #include "scene/3d/convert_transform_modifier_3d.h"
 #include "scene/3d/copy_transform_modifier_3d.h"
 #include "scene/3d/cpu_particles_3d.h"
+#include "scene/3d/debug_draw_3d.h"
 #include "scene/3d/decal.h"
 #include "scene/3d/fabr_ik_3d.h"
 #include "scene/3d/fog_volume.h"
@@ -623,6 +624,7 @@ void register_scene_types() {
 	GDREGISTER_CLASS(Camera3D);
 	GDREGISTER_CLASS(AudioListener3D);
 	GDREGISTER_CLASS(MeshInstance3D);
+	GDREGISTER_CLASS(DebugDraw3D);
 #ifndef DISABLE_DEPRECATED
 	MeshInstance3D::use_parent_skeleton_compat = GLOBAL_GET("animation/compatibility/default_parent_skeleton_in_mesh_instance_3d");
 #endif

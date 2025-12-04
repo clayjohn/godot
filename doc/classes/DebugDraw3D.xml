@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="DebugDraw3D" inherits="VisualInstance3D" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="debug_draw_line">
+			<return type="void" />
+			<param index="0" name="start" type="Vector3" />
+			<param index="1" name="end" type="Vector3" />
+			<param index="2" name="color" type="Color" default="Color(1, 0, 0, 1)" />
+			<param index="3" name="thickness" type="float" default="1.0" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>
