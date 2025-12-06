@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include "core/templates/local_vector.h"
 #include "scene/3d/visual_instance_3d.h"
 #include "scene/resources/immediate_mesh.h"
 #include "scene/resources/material.h"
@@ -46,7 +47,8 @@ class DebugDraw3D : public VisualInstance3D {
 		float thickness;
 	};
 
-	Vector<Line> lines;
+	LocalVector<Line> lines;
+	LocalVector<Line> persistent_lines;
 
 protected:
 	static void _bind_methods();
@@ -54,7 +56,12 @@ protected:
 
 public:
 	void debug_draw_line(const Vector3 &p_start, const Vector3 &p_end, const Color &p_color = Color(1, 0, 0), float p_thickness = 1.0f);
-	void _frame_pre_draw();
+	void debug_draw_persistent_line(const Vector3 &p_start, const Vector3 &p_end, const Color &p_color = Color(1, 0, 0), float p_thickness = 1.0f);
+	void debug_clear_persistent_lines();
+	void update_mesh();
+
+private:
+	void _add_line_vertex(const Line &l);
 
 	DebugDraw3D();
 	~DebugDraw3D();

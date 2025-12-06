@@ -34,18 +34,20 @@
 
 void DebugDraw3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_draw_line", "start", "end", "color", "thickness"), &DebugDraw3D::debug_draw_line, DEFVAL(Color(1, 0, 0)), DEFVAL(1.0f));
-	ClassDB::bind_method(D_METHOD("_frame_pre_draw"), &DebugDraw3D::_frame_pre_draw);
+	ClassDB::bind_method(D_METHOD("debug_draw_persistent_line", "start", "end", "color", "thickness"), &DebugDraw3D::debug_draw_persistent_line, DEFVAL(Color(1, 0, 0)), DEFVAL(1.0f));
+	ClassDB::bind_method(D_METHOD("debug_clear_persistent_lines"), &DebugDraw3D::debug_clear_persistent_lines);
+	ClassDB::bind_method(D_METHOD("update_mesh"), &DebugDraw3D::update_mesh);
 }
 
 void DebugDraw3D::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
-			RenderingServer::get_singleton()->connect("frame_pre_draw", Callable(this, "_frame_pre_draw"));
+			RenderingServer::get_singleton()->connect("frame_pre_draw", Callable(this, "update_mesh"));
 			set_process(true);
 		} break;
 		case NOTIFICATION_EXIT_TREE: {
-			if (RenderingServer::get_singleton()->is_connected("frame_pre_draw", Callable(this, "_frame_pre_draw"))) {
-				RenderingServer::get_singleton()->disconnect("frame_pre_draw", Callable(this, "_frame_pre_draw"));
+			if (RenderingServer::get_singleton()->is_connected("frame_pre_draw", Callable(this, "update_mesh"))) {
+				RenderingServer::get_singleton()->disconnect("frame_pre_draw", Callable(this, "update_mesh"));
 			}
 		} break;
 	}
@@ -60,8 +62,60 @@ void DebugDraw3D::debug_draw_line(const Vector3 &p_start, const Vector3 &p_end, 
 	lines.push_back(l);
 }
 
-void DebugDraw3D::_frame_pre_draw() {
-	if (lines.is_empty()) {
+void DebugDraw3D::debug_draw_persistent_line(const Vector3 &p_start, const Vector3 &p_end, const Color &p_color, float p_thickness) {
+	Line l;
+	l.start = p_start;
+	l.end = p_end;
+	l.color = p_color;
+	l.thickness = p_thickness;
+	persistent_lines.push_back(l);
+}
+
+void DebugDraw3D::debug_clear_persistent_lines() {
+	persistent_lines.clear();
+}
+
+void DebugDraw3D::_add_line_vertex(const Line &l) {
+	line_container->surface_set_color(l.color);
+
+	// We use TANGENT to store the "other" endpoint.
+	// We use UV.x for thickness and UV.y for expansion direction.
+
+	// Triangle 1
+	// P1, +
+	line_container->surface_set_tangent(Plane(l.end.x, l.end.y, l.end.z, 0.0));
+	line_container->surface_set_uv(Vector2(l.thickness, 1.0));
+	line_container->surface_add_vertex(l.start);
+
+	// P1, -
+	line_container->surface_set_tangent(Plane(l.end.x, l.end.y, l.end.z, 0.0));
+	line_container->surface_set_uv(Vector2(l.thickness, -1.0));
+	line_container->surface_add_vertex(l.start);
+
+	// P2, +
+	line_container->surface_set_tangent(Plane(l.start.x, l.start.y, l.start.z, 0.0));
+	line_container->surface_set_uv(Vector2(l.thickness, 1.0));
+	line_container->surface_add_vertex(l.end);
+
+	// Triangle 2
+	// P1, -
+	line_container->surface_set_tangent(Plane(l.end.x, l.end.y, l.end.z, 0.0));
+	line_container->surface_set_uv(Vector2(l.thickness, -1.0));
+	line_container->surface_add_vertex(l.start);
+
+	// P2, -
+	line_container->surface_set_tangent(Plane(l.start.x, l.start.y, l.start.z, 0.0));
+	line_container->surface_set_uv(Vector2(l.thickness, -1.0));
+	line_container->surface_add_vertex(l.end);
+
+	// P2, +
+	line_container->surface_set_tangent(Plane(l.start.x, l.start.y, l.start.z, 0.0));
+	line_container->surface_set_uv(Vector2(l.thickness, 1.0));
+	line_container->surface_add_vertex(l.end);
+}
+
+void DebugDraw3D::update_mesh() {
+	if (lines.is_empty() && persistent_lines.is_empty()) {
 		return;
 	}
 
@@ -69,42 +123,11 @@ void DebugDraw3D::_frame_pre_draw() {
 	line_container->surface_begin(Mesh::PRIMITIVE_TRIANGLES, material);
 
 	for (const Line &l : lines) {
-		line_container->surface_set_color(l.color);
+		_add_line_vertex(l);
+	}
 
-		// We use TANGENT to store the "other" endpoint.
-		// We use UV.x for thickness and UV.y for expansion direction.
-
-		// Triangle 1
-		// P1, +
-		line_container->surface_set_tangent(Plane(l.end.x, l.end.y, l.end.z, 0.0));
-		line_container->surface_set_uv(Vector2(l.thickness, 1.0));
-		line_container->surface_add_vertex(l.start);
-
-		// P1, -
-		line_container->surface_set_tangent(Plane(l.end.x, l.end.y, l.end.z, 0.0));
-		line_container->surface_set_uv(Vector2(l.thickness, -1.0));
-		line_container->surface_add_vertex(l.start);
-
-		// P2, +
-		line_container->surface_set_tangent(Plane(l.start.x, l.start.y, l.start.z, 0.0));
-		line_container->surface_set_uv(Vector2(l.thickness, 1.0));
-		line_container->surface_add_vertex(l.end);
-
-		// Triangle 2
-		// P1, -
-		line_container->surface_set_tangent(Plane(l.end.x, l.end.y, l.end.z, 0.0));
-		line_container->surface_set_uv(Vector2(l.thickness, -1.0));
-		line_container->surface_add_vertex(l.start);
-
-		// P2, -
-		line_container->surface_set_tangent(Plane(l.start.x, l.start.y, l.start.z, 0.0));
-		line_container->surface_set_uv(Vector2(l.thickness, -1.0));
-		line_container->surface_add_vertex(l.end);
-
-		// P2, +
-		line_container->surface_set_tangent(Plane(l.start.x, l.start.y, l.start.z, 0.0));
-		line_container->surface_set_uv(Vector2(l.thickness, 1.0));
-		line_container->surface_add_vertex(l.end);
+	for (const Line &l : persistent_lines) {
+		_add_line_vertex(l);
 	}
 
 	line_container->surface_end();
