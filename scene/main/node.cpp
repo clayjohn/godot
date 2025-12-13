@@ -2151,39 +2151,60 @@ bool Node::is_ancestor_of(RequiredParam<const Node> rp_node) const {
 
 bool Node::is_greater_than(RequiredParam<const Node> rp_node) const {
 	// parent->get_child(1) > parent->get_child(0) > parent
-
 	EXTRACT_PARAM_OR_FAIL_V(p_node, rp_node, false);
+	ERR_FAIL_NULL_V(p_node, false);
 	ERR_FAIL_COND_V(!data.tree, false);
-	ERR_FAIL_COND_V(p_node->data.tree != data.tree, false);
+	ERR_FAIL_COND_V(!p_node->data.tree, false);
 
 	ERR_FAIL_COND_V(data.depth < 0, false);
 	ERR_FAIL_COND_V(p_node->data.depth < 0, false);
 
 	_update_children_cache();
 
-	bool this_is_deeper = this->data.depth > p_node->data.depth;
+	int *this_stack = (int *)alloca(sizeof(int) * data.depth);
+	int *that_stack = (int *)alloca(sizeof(int) * p_node->data.depth);
 
-	const Node *deep = this;
-	const Node *shallow = p_node;
-	if (!this_is_deeper) {
-		deep = p_node;
-		shallow = this;
+	const Node *n = this;
+
+	int idx = data.depth - 1;
+	while (n) {
+		ERR_FAIL_INDEX_V(idx, data.depth, false);
+		this_stack[idx--] = n->get_index();
+		n = n->data.parent;
 	}
 
-	while (deep->data.depth > shallow->data.depth) {
-		deep = deep->data.parent;
+	ERR_FAIL_COND_V(idx != -1, false);
+	n = p_node;
+	idx = p_node->data.depth - 1;
+	while (n) {
+		ERR_FAIL_INDEX_V(idx, p_node->data.depth, false);
+		that_stack[idx--] = n->get_index();
+
+		n = n->data.parent;
+	}
+	ERR_FAIL_COND_V(idx != -1, false);
+	idx = 0;
+
+	bool res;
+	while (true) {
+		// using -2 since out-of-tree or nonroot nodes have -1
+		int this_idx = (idx >= data.depth) ? -2 : this_stack[idx];
+		int that_idx = (idx >= p_node->data.depth) ? -2 : that_stack[idx];
+
+		if (this_idx > that_idx) {
+			res = true;
+			break;
+		} else if (this_idx < that_idx) {
+			res = false;
+			break;
+		} else if (this_idx == -2) {
+			res = false; // equal
+			break;
+		}
+		idx++;
 	}
 
-	if (deep == shallow) { // Shallow is ancestor of deep.
-		return this_is_deeper;
-	}
-
-	while (deep->data.parent != shallow->data.parent) {
-		deep = deep->data.parent;
-		shallow = shallow->data.parent;
-	}
-
-	return (deep->get_index() > shallow->get_index()) == this_is_deeper;
+	return res;
 }
 
 void Node::get_owned_by(Node *p_by, List<Node *> *p_owned) {
