@@ -274,29 +274,112 @@ void light_compute(hvec3 N, hvec3 L, hvec3 V, half A, hvec3 light_color, bool is
 #ifndef SHADOWS_DISABLED
 
 #ifdef PCF_FIXED_KERNEL
+
 half sample_pcf_shadow_fixed_kernel(texture2D shadow, vec2 shadow_pixel_size, vec3 coord, uint samples) {
-	if (samples == 13) {
-		float avg = textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(shadow_pixel_size.x * 2.0, 0.0), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(-shadow_pixel_size.x * 2.0, 0.0), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(0.0, shadow_pixel_size.y * 2.0), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(0.0, -shadow_pixel_size.y * 2.0), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy, coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(shadow_pixel_size.x, 0.0), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(-shadow_pixel_size.x, 0.0), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(0.0, shadow_pixel_size.y), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(0.0, -shadow_pixel_size.y), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(shadow_pixel_size.x, shadow_pixel_size.y), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(-shadow_pixel_size.x, shadow_pixel_size.y), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(shadow_pixel_size.x, -shadow_pixel_size.y), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(-shadow_pixel_size.x, -shadow_pixel_size.y), coord.z, 1.0));
-		return half(avg * (1.0 / 13.0));
-	} else if (samples == 5) {
-		float avg = textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy, coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(shadow_pixel_size.x, 0.0), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(-shadow_pixel_size.x, 0.0), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(0.0, shadow_pixel_size.y), coord.z, 1.0));
-		avg += textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy + vec2(0.0, -shadow_pixel_size.y), coord.z, 1.0));
-		return half(avg * (1.0 / 5.0));
+	vec2 uv = coord.xy / shadow_pixel_size;
+
+	vec2 base_uv;
+	base_uv.x = floor(uv.x + 0.5);
+	base_uv.y = floor(uv.y + 0.5);
+
+	float s = (uv.x + 0.5 - base_uv.x);
+	float t = (uv.y + 0.5 - base_uv.y);
+
+	base_uv -= vec2(0.5, 0.5);
+	base_uv *= shadow_pixel_size;
+
+	float sum = 0;
+	if (samples == 4) {
+		float uw0 = (3.0 - 2.0 * s);
+		float uw1 = (1.0 + 2.0 * s);
+
+		float u0 = (2.0 - s) / uw0 - 1.0;
+		float u1 = s / uw1 + 1.0;
+
+		float vw0 = (3.0 - 2.0 * t);
+		float vw1 = (1.0 + 2.0 * t);
+
+		float v0 = (2.0 - t) / vw0 - 1.0;
+		float v1 = t / vw1 + 1.0;
+
+		sum += uw0 * vw0 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u0, v0) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw1 * vw0 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u1, v0) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw0 * vw1 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u0, v1) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw1 * vw1 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u1, v1) * shadow_pixel_size, coord.z, 1.0));
+
+		return half(sum * (1.0f / 16.0f));
+	} else if (samples == 9) {
+		float uw0 = (4.0 - 3.0 * s);
+		float uw1 = 7.0;
+		float uw2 = (1.0 + 3.0 * s);
+
+		float u0 = (3.0 - 2.0 * s) / uw0 - 2.0;
+		float u1 = (3.0 + s) / uw1;
+		float u2 = s / uw2 + 2.0;
+
+		float vw0 = (4.0 - 3.0 * t);
+		float vw1 = 7.0;
+		float vw2 = (1.0 + 3.0 * t);
+
+		float v0 = (3.0 - 2.0 * t) / vw0 - 2.0;
+		float v1 = (3.0 + t) / vw1;
+		float v2 = t / vw2 + 2.0;
+
+		sum += uw0 * vw0 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u0, v0) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw1 * vw0 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u1, v0) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw2 * vw0 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u2, v0) * shadow_pixel_size, coord.z, 1.0));
+
+		sum += uw0 * vw1 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u0, v1) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw1 * vw1 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u1, v1) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw2 * vw1 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u2, v1) * shadow_pixel_size, coord.z, 1.0));
+
+		sum += uw0 * vw2 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u0, v2) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw1 * vw2 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u1, v2) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw2 * vw2 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u2, v2) * shadow_pixel_size, coord.z, 1.0));
+
+		return half(sum * 1.0f / 144.0f);
+	} else if (samples == 16) {
+		float uw0 = (5.0 * s - 6.0);
+		float uw1 = (11.0 * s - 28.0);
+		float uw2 = -(11.0 * s + 17.0);
+		float uw3 = -(5.0 * s + 1.0);
+
+		float u0 = (4.0 * s - 5.0) / uw0 - 3.0;
+		float u1 = (4.0 * s - 16.0) / uw1 - 1.0;
+		float u2 = -(7.0 * s + 5.0) / uw2 + 1.0;
+		float u3 = -s / uw3 + 3.0;
+
+		float vw0 = (5.0 * t - 6.0);
+		float vw1 = (11.0 * t - 28.0);
+		float vw2 = -(11.0 * t + 17.0);
+		float vw3 = -(5.0 * t + 1.0);
+
+		float v0 = (4.0 * t - 5.0) / vw0 - 3.0;
+		float v1 = (4.0 * t - 16.0) / vw1 - 1.0;
+		float v2 = -(7.0 * t + 5.0) / vw2 + 1.0;
+		float v3 = -t / vw3 + 3;
+
+		sum += uw0 * vw0 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u0, v0) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw1 * vw0 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u1, v0) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw2 * vw0 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u2, v0) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw3 * vw0 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u3, v0) * shadow_pixel_size, coord.z, 1.0));
+
+		sum += uw0 * vw1 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u0, v1) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw1 * vw1 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u1, v1) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw2 * vw1 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u2, v1) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw3 * vw1 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u3, v1) * shadow_pixel_size, coord.z, 1.0));
+
+		sum += uw0 * vw2 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u0, v2) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw1 * vw2 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u1, v2) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw2 * vw2 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u2, v2) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw3 * vw2 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u3, v2) * shadow_pixel_size, coord.z, 1.0));
+
+		sum += uw0 * vw3 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u0, v3) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw1 * vw3 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u1, v3) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw2 * vw3 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u2, v3) * shadow_pixel_size, coord.z, 1.0));
+		sum += uw3 * vw3 * textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(base_uv + vec2(u3, v3) * shadow_pixel_size, coord.z, 1.0));
+
+		return half(sum * 1.0f / 2704.0f);
 	} else {
 		return half(textureProj(sampler2DShadow(shadow, shadow_sampler), vec4(coord.xy, coord.z, 1.0)));
 	}

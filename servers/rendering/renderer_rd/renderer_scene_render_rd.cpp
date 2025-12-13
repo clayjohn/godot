@@ -1200,22 +1200,22 @@ void RendererSceneRenderRD::directional_soft_shadow_filter_set_quality(RS::Shado
 			} break;
 			case RS::SHADOW_QUALITY_SOFT_LOW: {
 				directional_penumbra_shadow_samples = 8;
-				directional_soft_shadow_samples = fixed_pcf_kernel ? 5 : 4;
+				directional_soft_shadow_samples = fixed_pcf_kernel ? 4 : 4;
 				directional_shadow_quality_radius = 2.0;
 			} break;
 			case RS::SHADOW_QUALITY_SOFT_MEDIUM: {
 				directional_penumbra_shadow_samples = 12;
-				directional_soft_shadow_samples = fixed_pcf_kernel ? 5 : 8;
+				directional_soft_shadow_samples = fixed_pcf_kernel ? 9 : 8;
 				directional_shadow_quality_radius = 2.0;
 			} break;
 			case RS::SHADOW_QUALITY_SOFT_HIGH: {
 				directional_penumbra_shadow_samples = 24;
-				directional_soft_shadow_samples = fixed_pcf_kernel ? 13 : 16;
+				directional_soft_shadow_samples = fixed_pcf_kernel ? 16 : 16;
 				directional_shadow_quality_radius = 3.0;
 			} break;
 			case RS::SHADOW_QUALITY_SOFT_ULTRA: {
 				directional_penumbra_shadow_samples = 32;
-				directional_soft_shadow_samples = fixed_pcf_kernel ? 13 : 32;
+				directional_soft_shadow_samples = fixed_pcf_kernel ? 16 : 32;
 				directional_shadow_quality_radius = 4.0;
 			} break;
 			case RS::SHADOW_QUALITY_MAX:
