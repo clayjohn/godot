@@ -1151,22 +1151,22 @@ void RendererSceneRenderRD::positional_soft_shadow_filter_set_quality(RS::Shadow
 			} break;
 			case RS::SHADOW_QUALITY_SOFT_LOW: {
 				penumbra_shadow_samples = 8;
-				soft_shadow_samples = fixed_pcf_kernel ? 5 : 4;
+				soft_shadow_samples = fixed_pcf_kernel ? 4 : 4;
 				shadows_quality_radius = 2.0;
 			} break;
 			case RS::SHADOW_QUALITY_SOFT_MEDIUM: {
 				penumbra_shadow_samples = 12;
-				soft_shadow_samples = fixed_pcf_kernel ? 5 : 8;
+				soft_shadow_samples = fixed_pcf_kernel ? 9 : 8;
 				shadows_quality_radius = 2.0;
 			} break;
 			case RS::SHADOW_QUALITY_SOFT_HIGH: {
 				penumbra_shadow_samples = 24;
-				soft_shadow_samples = fixed_pcf_kernel ? 13 : 16;
+				soft_shadow_samples = fixed_pcf_kernel ? 16 : 16;
 				shadows_quality_radius = 3.0;
 			} break;
 			case RS::SHADOW_QUALITY_SOFT_ULTRA: {
 				penumbra_shadow_samples = 32;
-				soft_shadow_samples = fixed_pcf_kernel ? 13 : 32;
+				soft_shadow_samples = fixed_pcf_kernel ? 16 : 32;
 				shadows_quality_radius = 4.0;
 			} break;
 			case RS::SHADOW_QUALITY_MAX:
