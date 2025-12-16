@@ -6270,6 +6270,8 @@ bool RenderingDevice::_dependencies_make_mutable(RID p_id, RDG::ResourceTracker 
 
 void RenderingDevice::free_rid(RID p_rid) {
 	ERR_RENDER_THREAD_GUARD();
+	ERR_FAIL_COND_MSG(draw_list.active, "Freeing RIDs is forbidden during creation of a draw list");
+	ERR_FAIL_COND_MSG(compute_list.active, "Freeing RIDs is forbidden during creation of a compute list");
 
 	_free_dependencies(p_rid); // Recursively erase dependencies first, to avoid potential API problems.
 	_free_internal(p_rid);
