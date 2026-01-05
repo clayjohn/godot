@@ -1113,7 +1113,8 @@ void CopyEffects::octmap_downsample(RID p_source_octmap, RID p_dest_octmap, cons
 	ERR_FAIL_NULL(material_storage);
 
 	octmap_downsampler.push_constant.size = p_size.x;
-	octmap_downsampler.push_constant.border_size = 1.0f - p_border_size * 2.0f;
+	octmap_downsampler.push_constant.border_size[0] = p_border_size;
+	octmap_downsampler.push_constant.border_size[1] = 1.0f - p_border_size * 2.0f;
 
 	// setup our uniforms
 	RID default_sampler = material_storage->sampler_rd_get_default(RS::CANVAS_ITEM_TEXTURE_FILTER_LINEAR, RS::CANVAS_ITEM_TEXTURE_REPEAT_DISABLED);
@@ -1149,7 +1150,7 @@ void CopyEffects::octmap_downsample_raster(RID p_source_octmap, RID p_dest_frame
 	ERR_FAIL_NULL(material_storage);
 
 	octmap_downsampler.push_constant.size = p_size.x;
-	octmap_downsampler.push_constant.border_size = 1.0f - p_border_size * 2.0f;
+	octmap_downsampler.push_constant.border_size[1] = 1.0f - p_border_size * 2.0f;
 
 	// setup our uniforms
 	RID default_sampler = material_storage->sampler_rd_get_default(RS::CANVAS_ITEM_TEXTURE_FILTER_LINEAR, RS::CANVAS_ITEM_TEXTURE_REPEAT_DISABLED);

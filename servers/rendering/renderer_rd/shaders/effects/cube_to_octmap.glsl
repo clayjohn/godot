@@ -31,6 +31,7 @@ layout(push_constant, std430) uniform Params {
 params;
 
 void main() {
-	vec3 dir = oct_to_vec3_with_border(uv_interp * 0.5 + 0.5, params.border_size);
+	//TODO don't commit with this
+	vec3 dir = oct_to_vec3_with_border(uv_interp * 0.5 + 0.5, vec2(params.border_size));
 	frag_color = vec4(texture(source_cube, dir).rgb, 1.0);
 }

@@ -250,9 +250,9 @@ private:
 	// Octmap effects
 
 	struct OctmapDownsamplerPushConstant {
-		float border_size;
+		float border_size[2];
 		uint32_t size;
-		uint32_t pad[2];
+		uint32_t pad;
 	};
 
 	enum OctmapDownsamplerMode {

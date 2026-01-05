@@ -85,7 +85,7 @@ void main() {
 	id.x -= id.y * res;
 
 	vec2 inv_res = 1.0 / vec2(res);
-	vec3 dir = oct_to_vec3_with_border((vec2(id.xy) + vec2(0.5)) * inv_res, params.border_size.y);
+	vec3 dir = oct_to_vec3_with_border((vec2(id.xy) + vec2(0.5)) * inv_res, params.border_size);
 	vec3 adir = abs(dir);
 	vec3 frameZ = dir;
 

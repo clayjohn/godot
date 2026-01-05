@@ -1,4 +1,5 @@
 
+
 vec3 oct_to_vec3(vec2 e) {
 	vec3 v = vec3(e.xy, 1.0 - abs(e.x) - abs(e.y));
 	float t = max(-v.z, 0.0);
@@ -6,16 +7,40 @@ vec3 oct_to_vec3(vec2 e) {
 	return normalize(v);
 }
 
-// border_size: 1.0 - padding_in_uv_space * 2.0.
-vec3 oct_to_vec3_with_border(vec2 uv, float border_size) {
+// border_size.x: padding_in_uv_space
+// border_size.y: 1.0 - padding_in_uv_space * 2.0
+vec3 oct_to_vec3_with_border(vec2 uv, vec2 border_size) {
 	// Convert into [-1,1] space and add border which extends beyond [-1,1].
-	uv = (uv - 0.5) * (2.0 / border_size);
+	uv = (uv - border_size.x) / border_size.y;
+	/*
+	uv = uv * 2.0 - 1.0;
 	// Calculate octahedral mirroring for values outside of [-1,1].
 	// Inspired by Timothy Lottes' code here: https://gpuopen.com/learn/fetching-from-cubes-and-octahedrons/
 	vec2 mask = step(vec2(1.0), abs(uv));
 	uv = 2.0 * clamp(uv, -1.0, 1.0) - uv;
 	uv = mix(uv, -uv, mask.yx);
 	return oct_to_vec3(uv);
+
+
+*/
+	// Wrap horizontal edges
+	if (uv.x < 0.0) {
+		uv.x = -uv.x;
+		uv.y = 1.0 - uv.y;
+	} else if (uv.x > 1.0) {
+		uv.x = 2.0 - uv.x;
+		uv.y = 1.0 - uv.y;
+	}
+	// Wrap vertical edges
+	if (uv.y < 0.0) {
+		uv.y = -uv.y;
+		uv.x = 1.0 - uv.x;
+	} else if (uv.y > 1.0) {
+		uv.y = 2.0 - uv.y;
+		uv.x = 1.0 - uv.x;
+	}
+
+	return oct_to_vec3(clamp(uv * 2.0 - 1.0, -1.0, 1.0));
 }
 
 vec2 oct_wrap(vec2 v) {

@@ -24,19 +24,23 @@ void main() {
 		if (params.use_direct_write) {
 			imageStore(dest_octmap, ivec2(id), vec4(texture(source_oct, uv).rgb, 1.0));
 		} else {
-			vec3 N = oct_to_vec3_with_border(uv, params.border_size.y);
+			vec3 N = oct_to_vec3_with_border(uv, params.border_size);
 			vec4 sum = vec4(0.0, 0.0, 0.0, 0.0);
 			float solid_angle_texel = 4.0 * M_PI / float(params.dest_size * params.dest_size);
 			float roughness2 = params.roughness * params.roughness;
 			float roughness4 = roughness2 * roughness2;
 
-			// https://jcgt.org/published/0006/01/01/
-			float side = N.z >= 0.0f ? 1.0f : -1.0f;
-			float a = -1.0f / (side + N.z);
-			float b = N.x * N.y * a;
+			// frisvad technique from: https://jcgt.org/published/0006/01/01/
+			//
 			mat3 T;
-			T[0] = vec3(1.0f + side * N.x * N.x * a, side * b, -side * N.x);
-			T[1] = vec3(b, side + N.y * N.y * a, -N.y);
+			if (N.z < -0.9999999f) {
+				N = oct_to_vec3_with_border(uv + inv_dest_size * 4.0, params.border_size);
+			}
+
+			const float a = 1.0f / (1.0f + N.z);
+			const float b = -N.x * N.y * a;
+			T[0] = vec3(1.0f - N.x * N.x * a, b, -N.x);
+			T[1] = vec3(b, 1.0f - N.y * N.y * a, -N.y);
 			T[2] = N;
 
 			for (uint sampleNum = 0u; sampleNum < params.sample_count; sampleNum++) {

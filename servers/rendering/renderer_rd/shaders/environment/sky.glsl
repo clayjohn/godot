@@ -204,7 +204,7 @@ void main() {
 	vec2 uv = uv_interp * 0.5 + 0.5;
 	vec3 cube_normal;
 #ifdef USE_CUBEMAP_PASS
-	cube_normal = oct_to_vec3_with_border(uv, params.border_size.y);
+	cube_normal = oct_to_vec3_with_border(uv, params.border_size);
 #else
 #ifdef USE_MULTIVIEW
 	// In multiview our projection matrices will contain positional and rotational offsets that we need to properly unproject.

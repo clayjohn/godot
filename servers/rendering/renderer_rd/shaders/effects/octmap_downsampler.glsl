@@ -35,16 +35,15 @@ layout(set = 0, binding = 0) uniform sampler2D source_octmap;
 layout(rgba16f, set = 1, binding = 0) uniform restrict writeonly image2D dest_octmap;
 
 layout(push_constant, std430) uniform Params {
-	float border_size;
+	vec2 border_size;
 	uint size;
 	uint pad;
-	uint pad2;
 }
 params;
 
 // Use an approximation of the Jacobian.
 float calcWeight(float u, float v) {
-	vec3 d = oct_to_vec3_with_border(vec2(u, v), params.border_size);
+	vec3 d = oct_to_vec3_with_border(vec2(u, v), vec2(1.0, params.border_size));
 	return 1.0 / pow(abs(d.z) + 1.0, 3.0);
 }
 
