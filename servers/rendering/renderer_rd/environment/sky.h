@@ -262,6 +262,7 @@ public:
 		float uv_border_size = 0.0; // Border size in UV space.
 
 		RS::SkyMode mode = RS::SKY_MODE_AUTOMATIC;
+		RS::SkyMode fallback_mode = RS::SKY_MODE_AUTOMATIC; // When using SKY_MODE_AUTOMATIC, this is the fallback.
 
 		ReflectionData reflection;
 		bool dirty = false;
