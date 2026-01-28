@@ -2166,6 +2166,7 @@ void fragment_shader(in SceneData scene_data) {
 			ambient_light += ssil.rgb * albedo.rgb;
 		}
 
+#ifndef DISABLE_SSR
 		//process ssr
 		if (bool(implementation_data.ss_effects_flags & SCREEN_SPACE_EFFECTS_FLAGS_USE_SSR)) {
 			bool resolve_ssr = bool(implementation_data.ss_effects_flags & SCREEN_SPACE_EFFECTS_FLAGS_RESOLVE_SSR);
@@ -2198,6 +2199,7 @@ void fragment_shader(in SceneData scene_data) {
 			// Alpha is premultiplied.
 			indirect_specular_light = indirect_specular_light * (1.0 - ssr.a) + ssr.rgb;
 		}
+#endif
 	}
 #endif // AMBIENT_LIGHT_DISABLED
 
