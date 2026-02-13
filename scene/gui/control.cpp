@@ -292,9 +292,6 @@ String Control::properties_managed_by_container[] = {
 	"anchor_top",
 	"anchor_right",
 	"anchor_bottom",
-	"position",
-	"rotation",
-	"scale",
 	"size"
 };
 
@@ -546,7 +543,7 @@ void Control::_validate_property(PropertyInfo &p_property) const {
 		// If the parent is a container, display only container-related properties.
 		if (p_property.name.begins_with("anchor_") || p_property.name.begins_with("offset_") || p_property.name.begins_with("grow_") || p_property.name == "anchors_preset") {
 			p_property.usage ^= PROPERTY_USAGE_DEFAULT;
-		} else if (p_property.name == "position" || p_property.name == "rotation" || p_property.name == "scale" || p_property.name == "size" || p_property.name == "pivot_offset" || p_property.name == "pivot_offset_ratio") {
+		} else if (p_property.name == "size" || p_property.name == "pivot_offset_ratio") {
 			p_property.usage = PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_READ_ONLY;
 		} else if (Engine::get_singleton()->is_editor_hint() && p_property.name == "layout_mode") {
 			// Set the layout mode to be disabled with the proper value.
