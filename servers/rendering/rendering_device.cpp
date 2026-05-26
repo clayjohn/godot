@@ -4819,7 +4819,7 @@ bool RenderingDevice::uniform_sets_have_linear_pools() const {
 /**** PIPELINES ****/
 /*******************/
 
-RID RenderingDevice::render_pipeline_create(RID p_shader, FramebufferFormatID p_framebuffer_format, VertexFormatID p_vertex_format, RenderPrimitive p_render_primitive, const PipelineRasterizationState &p_rasterization_state, const PipelineMultisampleState &p_multisample_state, const PipelineDepthStencilState &p_depth_stencil_state, const PipelineColorBlendState &p_blend_state, BitField<PipelineDynamicStateFlags> p_dynamic_state_flags, uint32_t p_for_render_pass, const Vector<PipelineSpecializationConstant> &p_specialization_constants) {
+RID RenderingDevice::render_pipeline_create(RID p_shader, FramebufferFormatID p_framebuffer_format, VertexFormatID p_vertex_format, RenderPrimitive p_render_primitive, const PipelineRasterizationState &p_rasterization_state, const PipelineMultisampleState &p_multisample_state, const PipelineDepthStencilState &p_depth_stencil_state, const PipelineColorBlendState &p_blend_state, BitField<PipelineDynamicStateFlags> p_dynamic_state_flags, uint32_t p_for_render_pass, const Vector<PipelineSpecializationConstant> &p_specialization_constants, bool p_vertex_only) {
 	// Needs a shader.
 	Shader *shader = shader_owner.get_or_null(p_shader);
 	ERR_FAIL_NULL_V(shader, RID());
@@ -4851,8 +4851,13 @@ RID RenderingDevice::render_pipeline_create(RID p_shader, FramebufferFormatID p_
 				output_mask |= 1 << i;
 			}
 		}
-		ERR_FAIL_COND_V_MSG(shader->fragment_output_mask != output_mask, RID(),
-				"Mismatch fragment shader output mask (" + itos(shader->fragment_output_mask) + ") and framebuffer color output mask (" + itos(output_mask) + ") when binding both in render pipeline.");
+		if (p_vertex_only) {
+			ERR_FAIL_COND_V_MSG(output_mask != 0, RID(),
+					"Vertex-only pipeline requires a depth-only framebuffer (no color attachments), but framebuffer has color output mask: " + itos(output_mask) + ".");
+		} else {
+			ERR_FAIL_COND_V_MSG(shader->fragment_output_mask != output_mask, RID(),
+					"Mismatch fragment shader output mask (" + itos(shader->fragment_output_mask) + ") and framebuffer color output mask (" + itos(output_mask) + ") when binding both in render pipeline.");
+		}
 	}
 
 	RDD::VertexFormatID driver_vertex_format;
@@ -4945,7 +4950,8 @@ RID RenderingDevice::render_pipeline_create(RID p_shader, FramebufferFormatID p_
 			p_dynamic_state_flags,
 			fb_format.render_pass,
 			p_for_render_pass,
-			p_specialization_constants);
+			p_specialization_constants,
+			p_vertex_only);
 	ERR_FAIL_COND_V(!pipeline.driver_id, RID());
 
 	if (pipeline_cache_enabled) {

@@ -5131,7 +5131,8 @@ RDD::PipelineID RenderingDeviceDriverD3D12::render_pipeline_create(
 		BitField<PipelineDynamicStateFlags> p_dynamic_state,
 		RenderPassID p_render_pass,
 		uint32_t p_render_subpass,
-		VectorView<PipelineSpecializationConstant> p_specialization_constants) {
+		VectorView<PipelineSpecializationConstant> p_specialization_constants,
+		bool p_vertex_only) {
 	const ShaderInfo *shader_info_in = (const ShaderInfo *)p_shader.id;
 
 	CD3DX12_PIPELINE_STATE_STREAM1 pipeline_desc = {};
@@ -5348,10 +5349,12 @@ RDD::PipelineID RenderingDeviceDriverD3D12::render_pipeline_create(
 		final_stages_bytecode[SHADER_STAGE_VERTEX].ptr(),
 		(SIZE_T)final_stages_bytecode[SHADER_STAGE_VERTEX].size()
 	};
-	pipeline_desc.PS = D3D12_SHADER_BYTECODE{
-		final_stages_bytecode[SHADER_STAGE_FRAGMENT].ptr(),
-		(SIZE_T)final_stages_bytecode[SHADER_STAGE_FRAGMENT].size()
-	};
+	if (!p_vertex_only) {
+		pipeline_desc.PS = D3D12_SHADER_BYTECODE{
+			final_stages_bytecode[SHADER_STAGE_FRAGMENT].ptr(),
+			(SIZE_T)final_stages_bytecode[SHADER_STAGE_FRAGMENT].size()
+		};
+	}
 
 	ComPtr<ID3D12Device2> device_2;
 	device->QueryInterface(device_2.GetAddressOf());

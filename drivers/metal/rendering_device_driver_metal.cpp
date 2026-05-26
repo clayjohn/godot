@@ -1884,7 +1884,8 @@ RDD::PipelineID RenderingDeviceDriverMetal::render_pipeline_create(
 		BitField<PipelineDynamicStateFlags> p_dynamic_state,
 		RenderPassID p_render_pass,
 		uint32_t p_render_subpass,
-		VectorView<PipelineSpecializationConstant> p_specialization_constants) {
+		VectorView<PipelineSpecializationConstant> p_specialization_constants,
+		bool p_vertex_only) {
 	MDRenderShader *shader = (MDRenderShader *)(p_shader.id);
 	MTL::VertexDescriptor *vert_desc = reinterpret_cast<MTL::VertexDescriptor *>(p_vertex_format.id);
 	MDRenderPass *pass = (MDRenderPass *)(p_render_pass.id);
@@ -2150,7 +2151,7 @@ RDD::PipelineID RenderingDeviceDriverMetal::render_pipeline_create(
 		desc->setVertexFunction(std::get<NS::SharedPtr<MTL::Function>>(function_or_err).get());
 	}
 
-	if (shader->frag) {
+	if (shader->frag && !p_vertex_only) {
 		Result<NS::SharedPtr<MTL::Function>> function_or_err = _create_function(shader->frag.get(), MTLSTR("main0"), p_specialization_constants);
 		ERR_FAIL_COND_V(std::holds_alternative<Error>(function_or_err), PipelineID());
 		desc->setFragmentFunction(std::get<NS::SharedPtr<MTL::Function>>(function_or_err).get());

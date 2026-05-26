@@ -719,7 +719,8 @@ public:
 			BitField<PipelineDynamicStateFlags> p_dynamic_state,
 			RenderPassID p_render_pass,
 			uint32_t p_render_subpass,
-			VectorView<PipelineSpecializationConstant> p_specialization_constants) = 0;
+			VectorView<PipelineSpecializationConstant> p_specialization_constants,
+			bool p_vertex_only = false) = 0;
 
 	/*****************/
 	/**** COMPUTE ****/

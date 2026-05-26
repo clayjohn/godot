@@ -5817,7 +5817,8 @@ RDD::PipelineID RenderingDeviceDriverVulkan::render_pipeline_create(
 		BitField<PipelineDynamicStateFlags> p_dynamic_state,
 		RenderPassID p_render_pass,
 		uint32_t p_render_subpass,
-		VectorView<PipelineSpecializationConstant> p_specialization_constants) {
+		VectorView<PipelineSpecializationConstant> p_specialization_constants,
+		bool p_vertex_only) {
 	// Vertex.
 	const VkPipelineVertexInputStateCreateInfo *vertex_input_state_create_info = nullptr;
 	if (p_vertex_format.id) {
@@ -6028,11 +6029,10 @@ RDD::PipelineID RenderingDeviceDriverVulkan::render_pipeline_create(
 
 	pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipeline_create_info.pNext = graphics_pipeline_nextptr;
-	pipeline_create_info.stageCount = shader_info->vk_stages_create_info.size();
-
-	ERR_FAIL_COND_V_MSG(pipeline_create_info.stageCount == 0, PipelineID(),
+	ERR_FAIL_COND_V_MSG(shader_info->vk_stages_create_info.is_empty(), PipelineID(),
 			"Can't create Vulkan pipeline without shader module. Make sure shader modules are destroyed only after all associated pipelines are created.");
 	VkPipelineShaderStageCreateInfo *vk_pipeline_stages = ALLOCA_ARRAY(VkPipelineShaderStageCreateInfo, shader_info->vk_stages_create_info.size());
+	uint32_t vk_pipeline_stage_count = 0;
 
 	thread_local std::vector<uint8_t> respv_optimized_data;
 	thread_local LocalVector<respv::SpecConstant> respv_spec_constants;
@@ -6053,7 +6053,11 @@ RDD::PipelineID RenderingDeviceDriverVulkan::render_pipeline_create(
 	specialization_entries.clear();
 
 	for (uint32_t i = 0; i < shader_info->vk_stages_create_info.size(); i++) {
-		vk_pipeline_stages[i] = shader_info->vk_stages_create_info[i];
+		if (p_vertex_only && shader_info->vk_stages_create_info[i].stage == VK_SHADER_STAGE_FRAGMENT_BIT) {
+			continue;
+		}
+
+		vk_pipeline_stages[vk_pipeline_stage_count] = shader_info->vk_stages_create_info[i];
 
 		if (p_specialization_constants.size()) {
 			bool use_pipeline_spec_constants = true;
@@ -6095,7 +6099,7 @@ RDD::PipelineID RenderingDeviceDriverVulkan::render_pipeline_create(
 					VkResult err = vkCreateShaderModule(vk_device, &shader_module_create_info, VKC::get_allocation_callbacks(VK_OBJECT_TYPE_SHADER_MODULE), &shader_module);
 					if (err == VK_SUCCESS) {
 						// Replace the module used in the creation info.
-						vk_pipeline_stages[i].module = shader_module;
+						vk_pipeline_stages[vk_pipeline_stage_count].module = shader_module;
 						respv_shader_modules.push_back(shader_module);
 						use_pipeline_spec_constants = false;
 					}
@@ -6130,12 +6134,14 @@ RDD::PipelineID RenderingDeviceDriverVulkan::render_pipeline_create(
 				specialization_info->mapEntryCount = specialization_entries.size();
 				specialization_info->pMapEntries = specialization_entries.ptr();
 
-				vk_pipeline_stages[i].pSpecializationInfo = specialization_info;
+				vk_pipeline_stages[vk_pipeline_stage_count].pSpecializationInfo = specialization_info;
 			}
 		}
+		vk_pipeline_stage_count++;
 	}
 
 	const RenderPassInfo *render_pass = (const RenderPassInfo *)(p_render_pass.id);
+	pipeline_create_info.stageCount = vk_pipeline_stage_count;
 	pipeline_create_info.pStages = vk_pipeline_stages;
 	pipeline_create_info.pVertexInputState = vertex_input_state_create_info;
 	pipeline_create_info.pInputAssemblyState = &input_assembly_create_info;
