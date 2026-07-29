@@ -51,6 +51,19 @@ static _FORCE_INLINE_ uint32_t _morton_code_3d(uint32_t p_x, uint32_t p_y, uint3
 	return (_expand_bits_10(p_x) << 2) | (_expand_bits_10(p_y) << 1) | _expand_bits_10(p_z);
 }
 
+// Matches Vector3::snappedf(0.0001), which routes every component through
+// Math::snapped() in double precision. Inlined because the real thing costs
+// four out-of-line calls per vertex, and this runs three times per face.
+static _FORCE_INLINE_ Vector3 _snap_vertex(const Vector3 &p_vertex) {
+	// Deliberately the double value of the real_t literal rather than the
+	// double literal, so this stays bit for bit what snappedf() produces.
+	constexpr double step = (double)(real_t)0.0001;
+	return Vector3(
+			(real_t)(Math::floor((double)p_vertex.x / step + 0.5) * step),
+			(real_t)(Math::floor((double)p_vertex.y / step + 0.5) * step),
+			(real_t)(Math::floor((double)p_vertex.z / step + 0.5) * step));
+}
+
 // Mirrors HashMapComparatorDefault<Vector3>, which dispatches to
 // Vector3::is_same(). Inlined here because Vector3::is_same() is out-of-line,
 // and vertex deduplication calls it once per probe.
@@ -190,11 +203,14 @@ void TriangleMesh::create(const Vector<Vector3> &p_faces, const Vector<int32_t> 
 	int fc = p_faces.size();
 	ERR_FAIL_COND(!fc || ((fc % 3) != 0));
 	fc /= 3;
-	triangles.resize(fc);
+	// Every field of every triangle is written by the loop below.
+	triangles.resize_uninitialized(fc);
 
 	// A binary tree over `fc` leaves needs `fc` leaf nodes plus `fc - 1`
-	// internal nodes, so this is always enough.
-	bvh.resize(fc * 2);
+	// internal nodes, so this is always enough. Left uninitialized because
+	// every field of every node is written before it is read: leaves below,
+	// internal nodes in _create_bvh().
+	bvh.resize_uninitialized(fc * 2);
 	BVH *bw = bvh.ptrw();
 
 	LocalVector<BVHLeaf> leaves;
@@ -226,8 +242,10 @@ void TriangleMesh::create(const Vector<Vector3> &p_faces, const Vector<int32_t> 
 		int32_t *tw = table.ptr();
 		memset(tw, -1, table_size * sizeof(int32_t));
 
-		// Worst case every vertex is unique. Truncated once the real count is known.
-		vertices.resize(fc * 3);
+		// Worst case every vertex is unique. Truncated once the real count is
+		// known. Uninitialized because a slot is only ever read back after it
+		// has been written.
+		vertices.resize_uninitialized(fc * 3);
 		Vector3 *vw = vertices.ptrw();
 		int vertex_count = 0;
 
@@ -236,7 +254,7 @@ void TriangleMesh::create(const Vector<Vector3> &p_faces, const Vector<int32_t> 
 			const Vector3 *v = &r[i * 3];
 
 			for (int j = 0; j < 3; j++) {
-				const Vector3 vs = v[j].snappedf(0.0001);
+				const Vector3 vs = _snap_vertex(v[j]);
 
 				int32_t vidx;
 				uint32_t slot = _hash_vertex(vs) & table_mask;
@@ -263,7 +281,6 @@ void TriangleMesh::create(const Vector<Vector3> &p_faces, const Vector<int32_t> 
 				}
 			}
 
-			f.normal = Face3(r[i * 3 + 0], r[i * 3 + 1], r[i * 3 + 2]).get_plane().get_normal();
 			f.surface_index = si ? si[i] : 0;
 
 			const Vector3 center = bw[i].aabb.get_center();

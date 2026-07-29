@@ -38,7 +38,6 @@ class TriangleMesh : public RefCounted {
 
 public:
 	struct Triangle {
-		Vector3 normal;
 		int indices[3];
 		int32_t surface_index = 0;
 	};
