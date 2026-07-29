@@ -30,54 +30,122 @@
 
 #include "triangle_mesh.h"
 
+#include "core/math/math_funcs_binary.h"
 #include "core/object/class_db.h"
+#include "core/templates/hashfuncs.h"
+#include "core/templates/local_vector.h"
 #include "core/templates/sort_array.h"
 
-int TriangleMesh::_create_bvh(BVH *p_bvh, BVH **p_bb, int p_from, int p_size, int p_depth, int &r_max_depth, int &r_max_alloc) {
+// Mirrors HashMapComparatorDefault<Vector3>, which dispatches to
+// Vector3::is_same(). Inlined here because Vector3::is_same() is out-of-line,
+// and vertex deduplication calls it once per probe.
+static _FORCE_INLINE_ bool _vertex_is_same(const Vector3 &p_a, const Vector3 &p_b) {
+	return Math::is_same(p_a.x, p_b.x) && Math::is_same(p_a.y, p_b.y) && Math::is_same(p_a.z, p_b.z);
+}
+
+// Equivalent to hash_murmur3_one_real(), including its +/- 0.0 and NaN
+// normalization, but inlined -- the real version lives in hashfuncs.cpp, which
+// costs three out-of-line calls for every vertex hashed.
+static _FORCE_INLINE_ uint32_t _hash_vertex_component(real_t p_in, uint32_t p_seed) {
+#ifdef REAL_T_IS_DOUBLE
+	union {
+		double d;
+		uint64_t i;
+	} u;
+
+	if (p_in == 0.0) {
+		u.d = 0.0;
+	} else if (Math::is_nan(p_in)) {
+		u.d = Math::NaN;
+	} else {
+		u.d = p_in;
+	}
+
+	return hash_murmur3_one_64(u.i, p_seed);
+#else
+	union {
+		float f;
+		uint32_t i;
+	} u;
+
+	if (p_in == 0.0f) {
+		u.f = 0.0;
+	} else if (Math::is_nan(p_in)) {
+		u.f = Math::NaN;
+	} else {
+		u.f = p_in;
+	}
+
+	return hash_murmur3_one_32(u.i, p_seed);
+#endif
+}
+
+// Equivalent to Vector3::hash().
+static _FORCE_INLINE_ uint32_t _hash_vertex(const Vector3 &p_vertex) {
+	uint32_t h = _hash_vertex_component(p_vertex.x, HASH_MURMUR3_SEED);
+	h = _hash_vertex_component(p_vertex.y, h);
+	h = _hash_vertex_component(p_vertex.z, h);
+	return hash_fmix32(h);
+}
+
+int TriangleMesh::_create_bvh(BVH *p_bvh, BVHLeaf *p_leaves, int p_from, int p_size, int p_depth, int &r_max_depth, int &r_max_alloc) {
 	if (p_depth > r_max_depth) {
 		r_max_depth = p_depth;
 	}
 
 	if (p_size == 1) {
-		return p_bb[p_from] - p_bvh;
+		return p_leaves[p_from].index;
 	} else if (p_size == 0) {
 		return -1;
 	}
 
-	AABB aabb;
-	aabb = p_bb[p_from]->aabb;
+	// Pick the split axis from the bounds of the leaf centers rather than from
+	// the merged leaf AABBs. Both are a linear scan, but this one only touches
+	// the compact center array, and it lets the node's own AABB be built from
+	// its two children below instead of merging every leaf AABB again here.
+	Vector3 center_min = p_leaves[p_from].center;
+	Vector3 center_max = center_min;
 	for (int i = 1; i < p_size; i++) {
-		aabb.merge_with(p_bb[p_from + i]->aabb);
+		const Vector3 &center = p_leaves[p_from + i].center;
+		center_min.x = MIN(center_min.x, center.x);
+		center_min.y = MIN(center_min.y, center.y);
+		center_min.z = MIN(center_min.z, center.z);
+		center_max.x = MAX(center_max.x, center.x);
+		center_max.y = MAX(center_max.y, center.y);
+		center_max.z = MAX(center_max.z, center.z);
 	}
 
-	int li = aabb.get_longest_axis_index();
+	const Vector3 extents = center_max - center_min;
+	int li = Vector3::AXIS_X;
+	if (extents.y > extents.x) {
+		li = (extents.z > extents.y) ? Vector3::AXIS_Z : Vector3::AXIS_Y;
+	} else if (extents.z > extents.x) {
+		li = Vector3::AXIS_Z;
+	}
 
 	switch (li) {
 		case Vector3::AXIS_X: {
-			SortArray<BVH *, BVHCmpX> sort_x;
-			sort_x.nth_element(0, p_size, p_size / 2, &p_bb[p_from]);
-			//sort_x.sort(&p_bb[p_from],p_size);
+			SortArray<BVHLeaf, BVHCmpX> sort_x;
+			sort_x.nth_element(0, p_size, p_size / 2, &p_leaves[p_from]);
 		} break;
 		case Vector3::AXIS_Y: {
-			SortArray<BVH *, BVHCmpY> sort_y;
-			sort_y.nth_element(0, p_size, p_size / 2, &p_bb[p_from]);
-			//sort_y.sort(&p_bb[p_from],p_size);
+			SortArray<BVHLeaf, BVHCmpY> sort_y;
+			sort_y.nth_element(0, p_size, p_size / 2, &p_leaves[p_from]);
 		} break;
 		case Vector3::AXIS_Z: {
-			SortArray<BVH *, BVHCmpZ> sort_z;
-			sort_z.nth_element(0, p_size, p_size / 2, &p_bb[p_from]);
-			//sort_z.sort(&p_bb[p_from],p_size);
-
+			SortArray<BVHLeaf, BVHCmpZ> sort_z;
+			sort_z.nth_element(0, p_size, p_size / 2, &p_leaves[p_from]);
 		} break;
 	}
 
-	int left = _create_bvh(p_bvh, p_bb, p_from, p_size / 2, p_depth + 1, r_max_depth, r_max_alloc);
-	int right = _create_bvh(p_bvh, p_bb, p_from + p_size / 2, p_size - p_size / 2, p_depth + 1, r_max_depth, r_max_alloc);
+	// Both halves hold at least one leaf, so neither child can come back as -1.
+	int left = _create_bvh(p_bvh, p_leaves, p_from, p_size / 2, p_depth + 1, r_max_depth, r_max_alloc);
+	int right = _create_bvh(p_bvh, p_leaves, p_from + p_size / 2, p_size - p_size / 2, p_depth + 1, r_max_depth, r_max_alloc);
 
 	int index = r_max_alloc++;
 	BVH *_new = &p_bvh[index];
-	_new->aabb = aabb;
-	_new->center = aabb.get_center();
+	_new->aabb = p_bvh[left].aabb.merge(p_bvh[right].aabb);
+	_new->center = _new->aabb.get_center();
 	_new->face_index = -1;
 	_new->left = left;
 	_new->right = right;
@@ -115,37 +183,67 @@ void TriangleMesh::create(const Vector<Vector3> &p_faces, const Vector<int32_t> 
 	fc /= 3;
 	triangles.resize(fc);
 
-	bvh.resize(fc * 3); //will never be larger than this (todo make better)
+	// A binary tree over `fc` leaves needs `fc` leaf nodes plus `fc - 1`
+	// internal nodes, so this is always enough.
+	bvh.resize(fc * 2);
 	BVH *bw = bvh.ptrw();
+
+	LocalVector<BVHLeaf> leaves;
+	leaves.resize_uninitialized(fc);
+	BVHLeaf *lw = leaves.ptr();
 
 	{
 		//create faces and indices and base bvh
-		//except for the Set for repeated triangles, everything
+		//except for the dedup table for repeated vertices, everything
 		//goes in-place.
 
 		const Vector3 *r = p_faces.ptr();
 		const int32_t *si = p_surface_indices.ptr();
 		Triangle *w = triangles.ptrw();
-		HashMap<Vector3, int> db;
+
+		// Open addressed table of indices into `vertices`, with -1 marking a
+		// free slot. Sized to a power of two so the bucket index is a mask
+		// instead of a modulo, and large enough that it never has to grow and
+		// that probe chains stay short.
+		const uint32_t table_size = (uint32_t)Math::next_power_of_2((uint64_t)fc * 6);
+		const uint32_t table_mask = table_size - 1;
+		LocalVector<int32_t> table;
+		table.resize_uninitialized(table_size);
+		int32_t *tw = table.ptr();
+		memset(tw, -1, table_size * sizeof(int32_t));
+
+		// Worst case every vertex is unique. Truncated once the real count is known.
+		vertices.resize(fc * 3);
+		Vector3 *vw = vertices.ptrw();
+		int vertex_count = 0;
 
 		for (int i = 0; i < fc; i++) {
 			Triangle &f = w[i];
 			const Vector3 *v = &r[i * 3];
 
 			for (int j = 0; j < 3; j++) {
-				int vidx = -1;
-				Vector3 vs = v[j].snappedf(0.0001);
-				HashMap<Vector3, int>::Iterator E = db.find(vs);
-				if (E) {
-					vidx = E->value;
-				} else {
-					vidx = db.size();
-					db[vs] = vidx;
+				const Vector3 vs = v[j].snappedf(0.0001);
+
+				int32_t vidx;
+				uint32_t slot = _hash_vertex(vs) & table_mask;
+				while (true) {
+					const int32_t existing = tw[slot];
+					if (existing < 0) {
+						vidx = vertex_count++;
+						vw[vidx] = vs;
+						tw[slot] = vidx;
+						break;
+					}
+					if (_vertex_is_same(vw[existing], vs)) {
+						vidx = existing;
+						break;
+					}
+					slot = (slot + 1) & table_mask;
 				}
 
 				f.indices[j] = vidx;
 				if (j == 0) {
-					bw[i].aabb.position = vs;
+					bw[i].aabb = AABB(vs, Vector3());
 				} else {
 					bw[i].aabb.expand_to(vs);
 				}
@@ -158,25 +256,17 @@ void TriangleMesh::create(const Vector<Vector3> &p_faces, const Vector<int32_t> 
 			bw[i].right = -1;
 			bw[i].face_index = i;
 			bw[i].center = bw[i].aabb.get_center();
+
+			lw[i].center = bw[i].center;
+			lw[i].index = i;
 		}
 
-		vertices.resize(db.size());
-		Vector3 *vw = vertices.ptrw();
-		for (const KeyValue<Vector3, int> &E : db) {
-			vw[E.value] = E.key;
-		}
-	}
-
-	Vector<BVH *> bwptrs;
-	bwptrs.resize(fc);
-	BVH **bwp = bwptrs.ptrw();
-	for (int i = 0; i < fc; i++) {
-		bwp[i] = &bw[i];
+		vertices.resize(vertex_count);
 	}
 
 	max_depth = 0;
 	int max_alloc = fc;
-	_create_bvh(bw, bwp, 0, fc, 1, max_depth, max_alloc);
+	_create_bvh(bw, lw, 0, fc, 1, max_depth, max_alloc);
 
 	bvh.resize(max_alloc); //resize back
 
