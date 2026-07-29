@@ -34,7 +34,22 @@
 #include "core/object/class_db.h"
 #include "core/templates/hashfuncs.h"
 #include "core/templates/local_vector.h"
-#include "core/templates/sort_array.h"
+
+// Inserts two zero bits after each of the 10 low bits of p_value.
+static _FORCE_INLINE_ uint32_t _expand_bits_10(uint32_t p_value) {
+	p_value = (p_value * 0x00010001u) & 0xFF0000FFu;
+	p_value = (p_value * 0x00000101u) & 0x0F00F00Fu;
+	p_value = (p_value * 0x00000011u) & 0xC30C30C3u;
+	p_value = (p_value * 0x00000005u) & 0x49249249u;
+	return p_value;
+}
+
+// Interleaves three 10 bit coordinates into a 30 bit Morton code. Sorting by
+// this code orders points along a space filling curve, so that a contiguous
+// run of codes is also a compact cluster in space.
+static _FORCE_INLINE_ uint32_t _morton_code_3d(uint32_t p_x, uint32_t p_y, uint32_t p_z) {
+	return (_expand_bits_10(p_x) << 2) | (_expand_bits_10(p_y) << 1) | _expand_bits_10(p_z);
+}
 
 // Mirrors HashMapComparatorDefault<Vector3>, which dispatches to
 // Vector3::is_same(). Inlined here because Vector3::is_same() is out-of-line,
@@ -88,59 +103,53 @@ static _FORCE_INLINE_ uint32_t _hash_vertex(const Vector3 &p_vertex) {
 	return hash_fmix32(h);
 }
 
-int TriangleMesh::_create_bvh(BVH *p_bvh, BVHLeaf *p_leaves, int p_from, int p_size, int p_depth, int &r_max_depth, int &r_max_alloc) {
+// Returns the last index of the left half of [p_first, p_last]. The leaves are
+// sorted by Morton code, so every code in the range shares each bit above the
+// highest bit where the range's first and last codes differ. Splitting the
+// range where that bit flips from 0 to 1 splits it along the widest axis of the
+// spatial subdivision the codes encode.
+int TriangleMesh::_find_split(const BVHLeaf *p_leaves, int p_first, int p_last) {
+	const uint32_t first_code = p_leaves[p_first].code;
+	const uint32_t last_code = p_leaves[p_last].code;
+
+	if (first_code == last_code) {
+		// Identical codes carry no spatial information to split on, so halve
+		// the range instead to keep the subtree balanced.
+		return (p_first + p_last) / 2;
+	}
+
+	// Single bit mask of the highest bit in which the two codes differ. Since
+	// the range is sorted, the first code has that bit clear and the last set.
+	const uint32_t mask = Math::previous_power_of_2(first_code ^ last_code);
+
+	int lo = p_first;
+	int hi = p_last;
+	while (lo + 1 < hi) {
+		const int mid = lo + (hi - lo) / 2;
+		if (p_leaves[mid].code & mask) {
+			hi = mid;
+		} else {
+			lo = mid;
+		}
+	}
+
+	return lo;
+}
+
+int TriangleMesh::_create_bvh(BVH *p_bvh, const BVHLeaf *p_leaves, int p_first, int p_last, int p_depth, int &r_max_depth, int &r_max_alloc) {
 	if (p_depth > r_max_depth) {
 		r_max_depth = p_depth;
 	}
 
-	if (p_size == 1) {
-		return p_leaves[p_from].index;
-	} else if (p_size == 0) {
-		return -1;
+	if (p_first == p_last) {
+		return p_leaves[p_first].index;
 	}
 
-	// Pick the split axis from the bounds of the leaf centers rather than from
-	// the merged leaf AABBs. Both are a linear scan, but this one only touches
-	// the compact center array, and it lets the node's own AABB be built from
-	// its two children below instead of merging every leaf AABB again here.
-	Vector3 center_min = p_leaves[p_from].center;
-	Vector3 center_max = center_min;
-	for (int i = 1; i < p_size; i++) {
-		const Vector3 &center = p_leaves[p_from + i].center;
-		center_min.x = MIN(center_min.x, center.x);
-		center_min.y = MIN(center_min.y, center.y);
-		center_min.z = MIN(center_min.z, center.z);
-		center_max.x = MAX(center_max.x, center.x);
-		center_max.y = MAX(center_max.y, center.y);
-		center_max.z = MAX(center_max.z, center.z);
-	}
-
-	const Vector3 extents = center_max - center_min;
-	int li = Vector3::AXIS_X;
-	if (extents.y > extents.x) {
-		li = (extents.z > extents.y) ? Vector3::AXIS_Z : Vector3::AXIS_Y;
-	} else if (extents.z > extents.x) {
-		li = Vector3::AXIS_Z;
-	}
-
-	switch (li) {
-		case Vector3::AXIS_X: {
-			SortArray<BVHLeaf, BVHCmpX> sort_x;
-			sort_x.nth_element(0, p_size, p_size / 2, &p_leaves[p_from]);
-		} break;
-		case Vector3::AXIS_Y: {
-			SortArray<BVHLeaf, BVHCmpY> sort_y;
-			sort_y.nth_element(0, p_size, p_size / 2, &p_leaves[p_from]);
-		} break;
-		case Vector3::AXIS_Z: {
-			SortArray<BVHLeaf, BVHCmpZ> sort_z;
-			sort_z.nth_element(0, p_size, p_size / 2, &p_leaves[p_from]);
-		} break;
-	}
-
-	// Both halves hold at least one leaf, so neither child can come back as -1.
-	int left = _create_bvh(p_bvh, p_leaves, p_from, p_size / 2, p_depth + 1, r_max_depth, r_max_alloc);
-	int right = _create_bvh(p_bvh, p_leaves, p_from + p_size / 2, p_size - p_size / 2, p_depth + 1, r_max_depth, r_max_alloc);
+	// _find_split() always leaves at least one leaf on either side, so neither
+	// child can come back as -1.
+	const int split = _find_split(p_leaves, p_first, p_last);
+	int left = _create_bvh(p_bvh, p_leaves, p_first, split, p_depth + 1, r_max_depth, r_max_alloc);
+	int right = _create_bvh(p_bvh, p_leaves, split + 1, p_last, p_depth + 1, r_max_depth, r_max_alloc);
 
 	int index = r_max_alloc++;
 	BVH *_new = &p_bvh[index];
@@ -191,6 +200,11 @@ void TriangleMesh::create(const Vector<Vector3> &p_faces, const Vector<int32_t> 
 	LocalVector<BVHLeaf> leaves;
 	leaves.resize_uninitialized(fc);
 	BVHLeaf *lw = leaves.ptr();
+
+	// Bounds of every leaf center, gathered below so the centers can be
+	// quantized into Morton codes afterwards.
+	Vector3 center_min = Vector3((real_t)Math::INF, (real_t)Math::INF, (real_t)Math::INF);
+	Vector3 center_max = -center_min;
 
 	{
 		//create faces and indices and base bvh
@@ -252,21 +266,96 @@ void TriangleMesh::create(const Vector<Vector3> &p_faces, const Vector<int32_t> 
 			f.normal = Face3(r[i * 3 + 0], r[i * 3 + 1], r[i * 3 + 2]).get_plane().get_normal();
 			f.surface_index = si ? si[i] : 0;
 
+			const Vector3 center = bw[i].aabb.get_center();
+
 			bw[i].left = -1;
 			bw[i].right = -1;
 			bw[i].face_index = i;
-			bw[i].center = bw[i].aabb.get_center();
+			bw[i].center = center;
 
-			lw[i].center = bw[i].center;
-			lw[i].index = i;
+			center_min.x = MIN(center_min.x, center.x);
+			center_min.y = MIN(center_min.y, center.y);
+			center_min.z = MIN(center_min.z, center.z);
+			center_max.x = MAX(center_max.x, center.x);
+			center_max.y = MAX(center_max.y, center.y);
+			center_max.z = MAX(center_max.z, center.z);
 		}
 
 		vertices.resize(vertex_count);
 	}
 
+	// Quantize the leaf centers onto a 1024^3 grid and interleave them into
+	// Morton codes. Sorting by code lays the faces out along a space filling
+	// curve, so the tree can be built by splitting runs of codes rather than by
+	// repeatedly scanning and partitioning the leaves by centroid.
+	{
+		const Vector3 center_size = center_max - center_min;
+		const Vector3 center_scale(
+				center_size.x > 0 ? (real_t)1024.0 / center_size.x : (real_t)0.0,
+				center_size.y > 0 ? (real_t)1024.0 / center_size.y : (real_t)0.0,
+				center_size.z > 0 ? (real_t)1024.0 / center_size.z : (real_t)0.0);
+
+		for (int i = 0; i < fc; i++) {
+			const Vector3 c = (bw[i].center - center_min) * center_scale;
+			lw[i].code = _morton_code_3d(
+					(uint32_t)CLAMP(c.x, (real_t)0.0, (real_t)1023.0),
+					(uint32_t)CLAMP(c.y, (real_t)0.0, (real_t)1023.0),
+					(uint32_t)CLAMP(c.z, (real_t)0.0, (real_t)1023.0));
+			lw[i].index = i;
+		}
+	}
+
+	// Stable LSD radix sort by Morton code, one byte per pass. Stability keeps
+	// faces sharing a code in their original order, so the build is
+	// deterministic. All four histograms are gathered in a single read pass.
+	{
+		LocalVector<BVHLeaf> scratch;
+		scratch.resize_uninitialized(fc);
+
+		uint32_t histogram[4][256] = {};
+		for (int i = 0; i < fc; i++) {
+			const uint32_t code = lw[i].code;
+			histogram[0][code & 0xFF]++;
+			histogram[1][(code >> 8) & 0xFF]++;
+			histogram[2][(code >> 16) & 0xFF]++;
+			histogram[3][(code >> 24) & 0xFF]++;
+		}
+
+		BVHLeaf *src = lw;
+		BVHLeaf *dst = scratch.ptr();
+
+		for (int pass = 0; pass < 4; pass++) {
+			const int shift = pass * 8;
+			uint32_t *counts = histogram[pass];
+
+			// Every code shares this byte, so this pass would not reorder
+			// anything. Common for the high bytes of a compact mesh.
+			if (counts[(src[0].code >> shift) & 0xFF] == (uint32_t)fc) {
+				continue;
+			}
+
+			uint32_t sum = 0;
+			for (int i = 0; i < 256; i++) {
+				const uint32_t count = counts[i];
+				counts[i] = sum;
+				sum += count;
+			}
+
+			for (int i = 0; i < fc; i++) {
+				dst[counts[(src[i].code >> shift) & 0xFF]++] = src[i];
+			}
+
+			SWAP(src, dst);
+		}
+
+		if (src != lw) {
+			memcpy(lw, src, fc * sizeof(BVHLeaf));
+		}
+	}
+
 	max_depth = 0;
 	int max_alloc = fc;
-	_create_bvh(bw, lw, 0, fc, 1, max_depth, max_alloc);
+	_create_bvh(bw, lw, 0, fc - 1, 1, max_depth, max_alloc);
 
 	bvh.resize(max_alloc); //resize back
 

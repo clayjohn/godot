@@ -58,32 +58,15 @@ private:
 	Vector<Triangle> triangles;
 	Vector<Vector3> vertices;
 
-	// Compact leaf record, only used while building the BVH. Partitioning these
-	// in place is much cheaper than partitioning an array of `BVH *`, which
-	// makes every comparison chase a pointer into a scattered, much larger node.
+	// Compact leaf record, only used while building the BVH: the Morton code of
+	// the leaf's center paired with the index of the leaf's node in `bvh`.
 	struct BVHLeaf {
-		Vector3 center;
+		uint32_t code;
 		uint32_t index;
 	};
 
-	struct BVHCmpX {
-		bool operator()(const BVHLeaf &p_left, const BVHLeaf &p_right) const {
-			return p_left.center.x < p_right.center.x;
-		}
-	};
-
-	struct BVHCmpY {
-		bool operator()(const BVHLeaf &p_left, const BVHLeaf &p_right) const {
-			return p_left.center.y < p_right.center.y;
-		}
-	};
-	struct BVHCmpZ {
-		bool operator()(const BVHLeaf &p_left, const BVHLeaf &p_right) const {
-			return p_left.center.z < p_right.center.z;
-		}
-	};
-
-	int _create_bvh(BVH *p_bvh, BVHLeaf *p_leaves, int p_from, int p_size, int p_depth, int &r_max_depth, int &r_max_alloc);
+	static int _find_split(const BVHLeaf *p_leaves, int p_first, int p_last);
+	int _create_bvh(BVH *p_bvh, const BVHLeaf *p_leaves, int p_first, int p_last, int p_depth, int &r_max_depth, int &r_max_alloc);
 
 	Vector<BVH> bvh;
 	int max_depth = 0;
