@@ -320,6 +320,9 @@ private:
 		AABB aabb;
 		Ref<Material> material;
 		bool is_2d = false;
+
+		bool has_cached_data = false;
+		RenderingServerTypes::SurfaceData cached_data;
 	};
 	Vector<Surface> surfaces;
 	mutable RID mesh;
@@ -327,12 +330,20 @@ private:
 	BlendShapeMode blend_shape_mode = BLEND_SHAPE_MODE_RELATIVE;
 	Vector<StringName> blend_shapes;
 	AABB custom_aabb;
+	bool surface_data_cache_enabled = false;
 
 	_FORCE_INLINE_ void _create_if_empty() const;
 	void _recompute_aabb();
+	void _clear_cached_surface_data(int p_surface);
+	void _update_cached_surface_region(int p_surface, Vector<uint8_t> &r_cached, int p_offset, const Vector<uint8_t> &p_data);
 
 protected:
 	virtual bool _is_generated() const { return false; }
+
+	// Cached surface data, for subclasses that keep their data on the CPU.
+	// Returns nullptr when the surface has no cached copy.
+	const RenderingServerTypes::SurfaceData *_get_cached_surface_data(int p_surface) const;
+	RenderingServerTypes::SurfaceData *_get_cached_surface_data(int p_surface);
 
 	bool _set(const StringName &p_name, const Variant &p_value);
 	bool _get(const StringName &p_name, Variant &r_ret) const;
@@ -344,6 +355,14 @@ protected:
 	static void _bind_methods();
 
 public:
+	// Retains a CPU-side copy of surface data as surfaces are added, so that saving the
+	// mesh does not have to read it back from the rendering server. Only affects surfaces
+	// added while enabled; disabling frees the copies again. Deliberately not exposed to
+	// scripting: the editor opts in for meshes it is about to serialize, and subclasses
+	// that always keep their data on the CPU enable it for themselves.
+	void set_surface_data_cache_enabled(bool p_enabled);
+	bool is_surface_data_cache_enabled() const;
+
 	void add_surface_from_arrays(PrimitiveType p_primitive, const Array &p_arrays, const TypedArray<Array> &p_blend_shapes = TypedArray<Array>(), const Dictionary &p_lods = Dictionary(), BitField<ArrayFormat> p_flags = 0);
 
 	void add_surface(BitField<ArrayFormat> p_format, PrimitiveType p_primitive, const Vector<uint8_t> &p_array, const Vector<uint8_t> &p_attribute_array, const Vector<uint8_t> &p_skin_array, int p_vertex_count, const Vector<uint8_t> &p_index_array, int p_index_count, const AABB &p_aabb, const Vector<uint8_t> &p_blend_shape_data = Vector<uint8_t>(), const Vector<AABB> &p_bone_aabbs = Vector<AABB>(), const Vector<RenderingServerTypes::SurfaceData::LOD> &p_lods = Vector<RenderingServerTypes::SurfaceData::LOD>(), const Vector4 p_uv_scale = Vector4());

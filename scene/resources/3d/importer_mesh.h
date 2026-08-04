@@ -135,7 +135,8 @@ public:
 	Size2i get_lightmap_size_hint() const;
 
 	bool has_mesh() const;
-	Ref<ArrayMesh> get_mesh(const Ref<ArrayMesh> &p_base = Ref<ArrayMesh>());
+	Ref<ArrayMesh> _get_mesh(const Ref<ArrayMesh> &p_base = Ref<ArrayMesh>());
+	Ref<ArrayMesh> get_mesh(const Ref<ArrayMesh> &p_base = Ref<ArrayMesh>(), bool p_use_cache = true);
 	static Ref<ImporterMesh> from_mesh(const Ref<Mesh> &p_mesh);
 	void clear();
 };

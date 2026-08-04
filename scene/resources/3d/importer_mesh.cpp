@@ -856,7 +856,11 @@ bool ImporterMesh::has_mesh() const {
 	return mesh.is_valid();
 }
 
-Ref<ArrayMesh> ImporterMesh::get_mesh(const Ref<ArrayMesh> &p_base) {
+Ref<ArrayMesh> ImporterMesh::_get_mesh(const Ref<ArrayMesh> &p_base) {
+	return get_mesh(p_base, false);
+}
+
+Ref<ArrayMesh> ImporterMesh::get_mesh(const Ref<ArrayMesh> &p_base, bool p_use_cache) {
 	ERR_FAIL_COND_V(surfaces.is_empty(), Ref<ArrayMesh>());
 
 	if (mesh.is_null()) {
@@ -866,6 +870,11 @@ Ref<ArrayMesh> ImporterMesh::get_mesh(const Ref<ArrayMesh> &p_base) {
 		if (mesh.is_null()) {
 			mesh.instantiate();
 		}
+
+		if (p_use_cache) {
+			mesh->set_surface_data_cache_enabled(true);
+		}
+
 		mesh->set_name(get_name());
 		if (has_meta("import_id")) {
 			mesh->set_meta("import_id", get_meta("import_id"));
@@ -1570,7 +1579,7 @@ void ImporterMesh::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_surface_material", "surface_idx", "material"), &ImporterMesh::set_surface_material);
 
 	ClassDB::bind_method(D_METHOD("generate_lods", "normal_merge_angle", "normal_split_angle", "bone_transform_array"), &ImporterMesh::_generate_lods_bind);
-	ClassDB::bind_method(D_METHOD("get_mesh", "base_mesh"), &ImporterMesh::get_mesh, DEFVAL(Ref<ArrayMesh>()));
+	ClassDB::bind_method(D_METHOD("get_mesh", "base_mesh"), &ImporterMesh::_get_mesh, DEFVAL(Ref<ArrayMesh>()));
 	ClassDB::bind_static_method("ImporterMesh", D_METHOD("from_mesh", "mesh"), &ImporterMesh::from_mesh);
 	ClassDB::bind_method(D_METHOD("clear"), &ImporterMesh::clear);
 

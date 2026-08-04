@@ -1516,7 +1516,12 @@ Array ArrayMesh::_get_surfaces() const {
 
 	Array ret;
 	for (int i = 0; i < surfaces.size(); i++) {
-		RenderingServerTypes::SurfaceData surface = RS::get_singleton()->mesh_get_surface(mesh, i);
+		RenderingServerTypes::SurfaceData fetched;
+		if (!surfaces[i].has_cached_data) {
+			fetched = RS::get_singleton()->mesh_get_surface(mesh, i);
+		}
+		const RenderingServerTypes::SurfaceData &surface = surfaces[i].has_cached_data ? surfaces[i].cached_data : fetched;
+
 		Dictionary data;
 		data["format"] = surface.format;
 		data["primitive"] = surface.primitive;
@@ -1812,9 +1817,43 @@ void ArrayMesh::add_surface(BitField<ArrayFormat> p_format, PrimitiveType p_prim
 
 	RenderingServer::get_singleton()->mesh_add_surface(mesh, sd);
 
+	if (surface_data_cache_enabled) {
+		Surface &cached = surfaces.write[surfaces.size() - 1];
+		cached.cached_data = sd;
+		cached.has_cached_data = true;
+	}
+
 	clear_cache();
 	notify_property_list_changed();
 	emit_changed();
+}
+
+// The surface cache is very simple. It is only used for avoiding the GPU-CPU readback for saving ArrayMeshes
+// This is very important for the import process which quickly becomes bottlenecked.
+void ArrayMesh::set_surface_data_cache_enabled(bool p_enabled) {
+	if (surface_data_cache_enabled == p_enabled) {
+		return;
+	}
+	surface_data_cache_enabled = p_enabled;
+
+	if (!p_enabled) {
+		for (int i = 0; i < surfaces.size(); i++) {
+			_clear_cached_surface_data(i);
+		}
+	}
+}
+
+bool ArrayMesh::is_surface_data_cache_enabled() const {
+	return surface_data_cache_enabled;
+}
+
+void ArrayMesh::_clear_cached_surface_data(int p_surface) {
+	if (!surfaces[p_surface].has_cached_data) {
+		return;
+	}
+	Surface &s = surfaces.write[p_surface];
+	s.has_cached_data = false;
+	s.cached_data = RenderingServerTypes::SurfaceData();
 }
 
 void ArrayMesh::add_surface_from_arrays(PrimitiveType p_primitive, const Array &p_arrays, const TypedArray<Array> &p_blend_shapes, const Dictionary &p_lods, BitField<ArrayFormat> p_flags) {
@@ -1953,6 +1992,12 @@ void ArrayMesh::surface_set_material(int p_idx, const Ref<Material> &p_material)
 	RenderingServer::get_singleton()->mesh_surface_set_material(mesh, p_idx, p_material.is_null() ? RID() : p_material->get_rid());
 
 	emit_changed();
+#ifdef TOOLS_ENABLED
+	if (surfaces[p_idx].has_cached_data) {
+		set_surface_data_cache_enabled(false);
+		WARN_PRINT_ONCE("Attempting to update material on an ArrayMesh with caching enabled which is not supported. Existing cache will be cleared and caching will be disabled.");
+	}
+#endif
 }
 
 int ArrayMesh::surface_find_by_name(const String &p_name) const {
@@ -1980,18 +2025,36 @@ void ArrayMesh::surface_update_vertex_region(int p_surface, int p_offset, const 
 	ERR_FAIL_INDEX(p_surface, surfaces.size());
 	RS::get_singleton()->mesh_surface_update_vertex_region(mesh, p_surface, p_offset, p_data);
 	emit_changed();
+#ifdef TOOLS_ENABLED
+	if (surfaces[p_surface].has_cached_data) {
+		set_surface_data_cache_enabled(false);
+		WARN_PRINT_ONCE("Attempting to update vertex region on an ArrayMesh with caching enabled which is not supported. Existing cache will be cleared and caching will be disabled.");
+	}
+#endif
 }
 
 void ArrayMesh::surface_update_attribute_region(int p_surface, int p_offset, const Vector<uint8_t> &p_data) {
 	ERR_FAIL_INDEX(p_surface, surfaces.size());
 	RS::get_singleton()->mesh_surface_update_attribute_region(mesh, p_surface, p_offset, p_data);
 	emit_changed();
+#ifdef TOOLS_ENABLED
+	if (surfaces[p_surface].has_cached_data) {
+		set_surface_data_cache_enabled(false);
+		WARN_PRINT_ONCE("Attempting to update attribute region on an ArrayMesh with caching enabled which is not supported. Existing cache will be cleared and caching will be disabled.");
+	}
+#endif
 }
 
 void ArrayMesh::surface_update_skin_region(int p_surface, int p_offset, const Vector<uint8_t> &p_data) {
 	ERR_FAIL_INDEX(p_surface, surfaces.size());
 	RS::get_singleton()->mesh_surface_update_skin_region(mesh, p_surface, p_offset, p_data);
 	emit_changed();
+#ifdef TOOLS_ENABLED
+	if (surfaces[p_surface].has_cached_data) {
+		set_surface_data_cache_enabled(false);
+		WARN_PRINT_ONCE("Attempting to update skin region on an ArrayMesh with caching enabled which is not supported. Existing cache will be cleared and caching will be disabled.");
+	}
+#endif
 }
 
 void ArrayMesh::surface_set_custom_aabb(int p_idx, const AABB &p_aabb) {
