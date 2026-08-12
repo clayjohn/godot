@@ -34,8 +34,10 @@
 #include "core/io/dir_access.h"
 #include "core/io/resource_loader.h"
 #include "core/io/resource_saver.h"
+#include "core/object/callable_mp.h"
 #include "core/object/class_db.h"
 #include "core/object/script_language.h"
+#include "core/os/thread.h"
 #include "editor/editor_interface.h"
 #include "editor/editor_node.h"
 #include "editor/import/3d/scene_import_settings.h"
@@ -3509,7 +3511,14 @@ Error ResourceImporterScene::import(ResourceUID::ID p_source_id, const String &p
 		print_verbose("Saving scene to: " + p_save_path + ".scn");
 		err = ResourceSaver::save(packer, p_save_path + ".scn", flags); //do not take over, let the changed files reload themselves
 		ERR_FAIL_COND_V_MSG(err != OK, err, "Cannot save scene to file '" + p_save_path + ".scn'.");
-		EditorInterface::get_singleton()->make_scene_preview(p_source_file, scene, 1024);
+		if (Thread::is_main_thread()) {
+			EditorInterface::get_singleton()->make_scene_preview(p_source_file, scene, 1024);
+		} else {
+			// make_scene_preview() iterates the main loop, which must not happen from an
+			// import thread. Defer it to import_threaded_end() instead.
+			MutexLock lock(pending_previews_mutex);
+			pending_previews.push_back(Pair<String, String>(p_source_file, p_save_path + ".scn"));
+		}
 	} else if (_scene_import_type == "ArrayMesh") {
 		_save_scene_as_single_mesh(p_source_file, p_save_path, scene, p_options, flags);
 	} else if (_scene_import_type == "MeshLibrary") {
@@ -3524,6 +3533,31 @@ Error ResourceImporterScene::import(ResourceUID::ID p_source_id, const String &p
 	//EditorNode::get_singleton()->reload_scene(p_source_file);
 
 	return OK;
+}
+
+void ResourceImporterScene::import_threaded_end() {
+	// Runs on the main thread once the whole batch is imported, so this is the first point
+	// at which the previews deferred by import() can be generated. The scenes themselves are
+	// long freed by now, so they are reloaded from what was just written to disk.
+	Vector<Pair<String, String>> previews;
+	{
+		MutexLock lock(pending_previews_mutex);
+		previews = pending_previews;
+		pending_previews.clear();
+	}
+
+	for (const Pair<String, String> &E : previews) {
+		Ref<PackedScene> packed_scene = ResourceLoader::load(E.second, "PackedScene", ResourceFormatLoader::CACHE_MODE_IGNORE);
+		if (packed_scene.is_null()) {
+			continue;
+		}
+		Node *scene = packed_scene->instantiate();
+		if (!scene) {
+			continue;
+		}
+		EditorInterface::get_singleton()->make_scene_preview(E.first, scene, 1024);
+		memdelete(scene);
+	}
 }
 
 Vector<Ref<EditorSceneFormatImporter>> ResourceImporterScene::scene_importers;

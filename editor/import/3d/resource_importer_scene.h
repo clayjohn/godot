@@ -32,6 +32,8 @@
 
 #include "core/error/error_macros.h"
 #include "core/io/resource_importer.h"
+#include "core/os/mutex.h"
+#include "core/templates/pair.h"
 #include "core/variant/dictionary.h"
 #include "scene/3d/importer_mesh_instance_3d.h"
 #include "scene/resources/3d/box_shape_3d.h"
@@ -167,6 +169,12 @@ class ResourceImporterScene : public ResourceImporter {
 	static Vector<Ref<EditorSceneFormatImporter>> scene_importers;
 	static Vector<Ref<EditorScenePostImportPlugin>> post_importer_plugins;
 
+	// EditorInterface::make_scene_preview() iterates the main loop, so it can only run on
+	// the main thread. Threaded imports queue the source path and the scene they just saved
+	// here, for import_threaded_end() to turn into previews once the batch is finished.
+	Mutex pending_previews_mutex;
+	Vector<Pair<String, String>> pending_previews;
+
 	enum LightBakeMode {
 		LIGHT_BAKE_DISABLED,
 		LIGHT_BAKE_STATIC,
@@ -265,6 +273,7 @@ public:
 	virtual String get_resource_type() const override;
 	virtual int get_format_version() const override;
 	virtual bool can_import_threaded() const override { return true; }
+	virtual void import_threaded_end() override;
 
 	virtual int get_preset_count() const override;
 	virtual String get_preset_name(int p_idx) const override;
