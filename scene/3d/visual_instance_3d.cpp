@@ -37,6 +37,7 @@ STATIC_ASSERT_INCOMPLETE_TYPE(class, RenderingServer);
 #include "core/os/os.h"
 #include "scene/main/scene_tree.h"
 #include "scene/resources/material.h"
+#include "scene/resources/packed_scene.h"
 #include "servers/rendering/rendering_server.h"
 
 AABB VisualInstance3D::get_aabb() const {
@@ -351,6 +352,15 @@ bool GeometryInstance3D::_get(const StringName &p_name, Variant &r_ret) const {
 }
 
 void GeometryInstance3D::_get_property_list(List<PropertyInfo> *p_list) const {
+	// Enumerating the available instance uniforms means a synchronous round trip to the
+	// rendering server, once for the list and once more per parameter for its default value.
+	// Every entry produced below is editor-only unless this instance has actually overridden
+	// that parameter, so when nothing is overridden there is nothing here for the packer to
+	// store and the round trips would be pure overhead.
+	if (instance_shader_parameters.is_empty() && SceneState::is_packing()) {
+		return;
+	}
+
 	List<PropertyInfo> pinfo;
 	RS::get_singleton()->instance_geometry_get_shader_parameter_list(get_instance(), &pinfo);
 	for (PropertyInfo &pi : pinfo) {

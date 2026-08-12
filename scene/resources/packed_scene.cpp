@@ -1407,8 +1407,16 @@ Error SceneState::_parse_connections(Node *p_owner, Node *p_node, HashMap<String
 	return OK;
 }
 
+thread_local uint32_t SceneState::packing_depth = 0;
+
 Error SceneState::pack(Node *p_scene) {
 	ERR_FAIL_NULL_V(p_scene, ERR_INVALID_PARAMETER);
+
+	// Counted rather than a plain flag: packing an inherited scene recurses into pack().
+	packing_depth++;
+	struct DepthGuard {
+		~DepthGuard() { SceneState::packing_depth--; }
+	} depth_guard;
 
 	clear();
 

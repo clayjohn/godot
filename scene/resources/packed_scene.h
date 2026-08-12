@@ -117,10 +117,18 @@ private:
 	static InstantiationWarningNotify instantiation_warn_notify;
 #endif
 
+private:
+	static thread_local uint32_t packing_depth;
+
 protected:
 	static void _bind_methods();
 
 public:
+	// True while this thread is inside pack(). Packing only stores properties carrying
+	// PROPERTY_USAGE_STORAGE, so nodes may use this to skip assembling editor-only entries
+	// that would be discarded, which is worth doing when producing them is expensive.
+	static bool is_packing() { return packing_depth > 0; }
+
 	enum {
 		FLAG_ID_IS_PATH = (1 << 30),
 		TYPE_INSTANTIATED = 0x7FFFFFFF,
