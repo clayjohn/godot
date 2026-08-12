@@ -1992,12 +1992,6 @@ void ArrayMesh::surface_set_material(int p_idx, const Ref<Material> &p_material)
 	RenderingServer::get_singleton()->mesh_surface_set_material(mesh, p_idx, p_material.is_null() ? RID() : p_material->get_rid());
 
 	emit_changed();
-#ifdef TOOLS_ENABLED
-	if (surfaces[p_idx].has_cached_data) {
-		set_surface_data_cache_enabled(false);
-		WARN_PRINT_ONCE("Attempting to update material on an ArrayMesh with caching enabled which is not supported. Existing cache will be cleared and caching will be disabled.");
-	}
-#endif
 }
 
 int ArrayMesh::surface_find_by_name(const String &p_name) const {
