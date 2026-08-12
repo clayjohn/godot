@@ -2900,6 +2900,11 @@ Node *ResourceImporterScene::_generate_meshes(Node *p_node, const Dictionary &p_
 
 					mesh->set_path(save_res_path, true); //takeover existing, if needed
 
+					// Unlike the meshes packed into the scene, this one outlives the import as a
+					// standalone resource and may already be on screen somewhere in the editor,
+					// so it cannot be left cache-only. Turning the cache off uploads it.
+					mesh->set_surface_data_cache_enabled(false);
+
 				} else {
 					mesh = importer_mesh->get_mesh();
 				}
@@ -3232,6 +3237,23 @@ Error ResourceImporterScene::_check_resource_save_paths(ResourceUID::ID p_source
 	return OK;
 }
 
+// Generates the thumbnail from the scene that was just written, rather than from the one
+// still in memory. The imported meshes are kept CPU side and never handed to the rendering
+// server (see ArrayMesh::set_surface_data_cache_enabled), so they cannot be drawn; reloading
+// gives a scene whose meshes went through the normal upload path.
+static void _make_scene_preview_from_file(const String &p_source_file, const String &p_scene_path) {
+	Ref<PackedScene> packed_scene = ResourceLoader::load(p_scene_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_IGNORE);
+	if (packed_scene.is_null()) {
+		return;
+	}
+	Node *scene = packed_scene->instantiate();
+	if (!scene) {
+		return;
+	}
+	EditorInterface::get_singleton()->make_scene_preview(p_source_file, scene, 1024);
+	memdelete(scene);
+}
+
 Error ResourceImporterScene::import(ResourceUID::ID p_source_id, const String &p_source_file, const String &p_save_path, const HashMap<StringName, Variant> &p_options, List<String> *r_platform_variants, List<String> *r_gen_files, Variant *r_metadata) {
 	const String &src_path = p_source_file;
 
@@ -3512,7 +3534,7 @@ Error ResourceImporterScene::import(ResourceUID::ID p_source_id, const String &p
 		err = ResourceSaver::save(packer, p_save_path + ".scn", flags); //do not take over, let the changed files reload themselves
 		ERR_FAIL_COND_V_MSG(err != OK, err, "Cannot save scene to file '" + p_save_path + ".scn'.");
 		if (Thread::is_main_thread()) {
-			EditorInterface::get_singleton()->make_scene_preview(p_source_file, scene, 1024);
+			_make_scene_preview_from_file(p_source_file, p_save_path + ".scn");
 		} else {
 			// make_scene_preview() iterates the main loop, which must not happen from an
 			// import thread. Defer it to import_threaded_end() instead.
@@ -3547,16 +3569,7 @@ void ResourceImporterScene::import_threaded_end() {
 	}
 
 	for (const Pair<String, String> &E : previews) {
-		Ref<PackedScene> packed_scene = ResourceLoader::load(E.second, "PackedScene", ResourceFormatLoader::CACHE_MODE_IGNORE);
-		if (packed_scene.is_null()) {
-			continue;
-		}
-		Node *scene = packed_scene->instantiate();
-		if (!scene) {
-			continue;
-		}
-		EditorInterface::get_singleton()->make_scene_preview(E.first, scene, 1024);
-		memdelete(scene);
+		_make_scene_preview_from_file(E.first, E.second);
 	}
 }
 

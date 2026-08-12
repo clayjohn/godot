@@ -1699,6 +1699,8 @@ void ArrayMesh::_set_surfaces(const Array &p_surfaces) {
 
 	surfaces.clear();
 	clear_cache();
+	// Loading always hands the surfaces straight to the rendering server above.
+	surfaces_upload_pending = false;
 
 	aabb = AABB();
 	for (int i = 0; i < surface_data.size(); i++) {
@@ -1815,12 +1817,17 @@ void ArrayMesh::add_surface(BitField<ArrayFormat> p_format, PrimitiveType p_prim
 	sd.lods = p_lods;
 	sd.uv_scale = p_uv_scale;
 
-	RenderingServer::get_singleton()->mesh_add_surface(mesh, sd);
-
 	if (surface_data_cache_enabled) {
+		// Keep the surface on the CPU only. Uploading it here would put the whole mesh
+		// through the rendering server's command queue, which is the dominant cost when
+		// importing, and an imported mesh is serialized rather than drawn. Anything that
+		// does need it on the GPU goes through _ensure_surfaces_uploaded().
 		Surface &cached = surfaces.write[surfaces.size() - 1];
 		cached.cached_data = sd;
 		cached.has_cached_data = true;
+		surfaces_upload_pending = true;
+	} else {
+		RenderingServer::get_singleton()->mesh_add_surface(mesh, sd);
 	}
 
 	clear_cache();
@@ -1837,8 +1844,25 @@ void ArrayMesh::set_surface_data_cache_enabled(bool p_enabled) {
 	surface_data_cache_enabled = p_enabled;
 
 	if (!p_enabled) {
+		// Turning the cache off means going back to being a normal, GPU resident mesh, so
+		// hand over anything that was only ever cached before dropping it.
+		_ensure_surfaces_uploaded();
 		for (int i = 0; i < surfaces.size(); i++) {
 			_clear_cached_surface_data(i);
+		}
+	}
+}
+
+void ArrayMesh::_ensure_surfaces_uploaded() const {
+	if (!surfaces_upload_pending) {
+		return;
+	}
+	// Clear the flag first: mesh_add_surface() must not recurse back in here.
+	surfaces_upload_pending = false;
+
+	for (int i = 0; i < surfaces.size(); i++) {
+		if (surfaces[i].has_cached_data) {
+			RenderingServer::get_singleton()->mesh_add_surface(mesh, surfaces[i].cached_data);
 		}
 	}
 }
@@ -1880,16 +1904,19 @@ void ArrayMesh::add_surface_from_arrays(PrimitiveType p_primitive, const Array &
 
 Array ArrayMesh::surface_get_arrays(int p_surface) const {
 	ERR_FAIL_INDEX_V(p_surface, surfaces.size(), Array());
+	_ensure_surfaces_uploaded();
 	return RenderingServer::get_singleton()->mesh_surface_get_arrays(mesh, p_surface);
 }
 
 TypedArray<Array> ArrayMesh::surface_get_blend_shape_arrays(int p_surface) const {
 	ERR_FAIL_INDEX_V(p_surface, surfaces.size(), TypedArray<Array>());
+	_ensure_surfaces_uploaded();
 	return RenderingServer::get_singleton()->mesh_surface_get_blend_shape_arrays(mesh, p_surface);
 }
 
 Dictionary ArrayMesh::surface_get_lods(int p_surface) const {
 	ERR_FAIL_INDEX_V(p_surface, surfaces.size(), Dictionary());
+	_ensure_surfaces_uploaded();
 	return RenderingServer::get_singleton()->mesh_surface_get_lods(mesh, p_surface);
 }
 
@@ -2078,12 +2105,17 @@ void ArrayMesh::clear_surfaces() {
 	}
 	RS::get_singleton()->mesh_clear(mesh);
 	surfaces.clear();
+	surfaces_upload_pending = false;
 	aabb = AABB();
 }
 
 void ArrayMesh::surface_remove(int p_surface) {
 	ERR_FAIL_INDEX(p_surface, surfaces.size());
-	RS::get_singleton()->mesh_surface_remove(mesh, p_surface);
+	// While the surfaces are still cache-only the rendering server has nothing to remove,
+	// and the indices it would be given do not line up with ours.
+	if (!surfaces_upload_pending) {
+		RS::get_singleton()->mesh_surface_remove(mesh, p_surface);
+	}
 	surfaces.remove_at(p_surface);
 
 	clear_cache();

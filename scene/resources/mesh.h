@@ -331,8 +331,13 @@ private:
 	Vector<StringName> blend_shapes;
 	AABB custom_aabb;
 	bool surface_data_cache_enabled = false;
+	// Set when surfaces were cached instead of being handed to the rendering server, so
+	// the mesh exists only on the CPU. Anything that needs the data on the GPU has to call
+	// _ensure_surfaces_uploaded() first.
+	mutable bool surfaces_upload_pending = false;
 
 	_FORCE_INLINE_ void _create_if_empty() const;
+	void _ensure_surfaces_uploaded() const;
 	void _recompute_aabb();
 	void _clear_cached_surface_data(int p_surface);
 	void _update_cached_surface_region(int p_surface, Vector<uint8_t> &r_cached, int p_offset, const Vector<uint8_t> &p_data);
