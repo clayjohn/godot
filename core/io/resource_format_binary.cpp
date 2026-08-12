@@ -43,6 +43,13 @@
 //#define print_bl(m_what) print_line(m_what)
 #define print_bl(m_what) (void)(m_what)
 
+// Block size used when writing compressed binary resources. Larger than the
+// FileAccessCompressed default, which is small enough that Zstd spends much of its time
+// on per-block setup and cannot find matches spanning more than a few kilobytes. The
+// block size is stored in the file header and read back on load, so files written with
+// any block size stay readable.
+static constexpr uint32_t RSCC_BLOCK_SIZE = 64 * 1024;
+
 enum {
 	//numbering must be different from variant, in case new variant types are added (variant must be always contiguous for jumptable optimization)
 	VARIANT_NIL = 1,
@@ -1258,7 +1265,7 @@ Error ResourceFormatLoaderBinary::rename_dependencies(const String &p_path, cons
 
 		Ref<FileAccessCompressed> facw;
 		facw.instantiate();
-		facw->configure("RSCC");
+		facw->configure("RSCC", Compression::MODE_ZSTD, RSCC_BLOCK_SIZE);
 		err = facw->open_internal(p_path + ".depren", FileAccess::WRITE);
 		ERR_FAIL_COND_V_MSG(err, ERR_FILE_CORRUPT, vformat("Cannot create file '%s.depren'.", p_path));
 
@@ -2107,7 +2114,7 @@ Error ResourceFormatSaverBinaryInstance::save(const String &p_path, const Ref<Re
 	if (p_flags & ResourceSaver::FLAG_COMPRESS) {
 		Ref<FileAccessCompressed> fac;
 		fac.instantiate();
-		fac->configure("RSCC");
+		fac->configure("RSCC", Compression::MODE_ZSTD, RSCC_BLOCK_SIZE);
 		f = fac;
 		err = fac->open_internal(p_path, FileAccess::WRITE);
 	} else {
@@ -2364,7 +2371,7 @@ Error ResourceFormatSaverBinaryInstance::set_uid(const String &p_path, ResourceU
 
 		Ref<FileAccessCompressed> facw;
 		facw.instantiate();
-		facw->configure("RSCC");
+		facw->configure("RSCC", Compression::MODE_ZSTD, RSCC_BLOCK_SIZE);
 		err = facw->open_internal(p_path + ".uidren", FileAccess::WRITE);
 		ERR_FAIL_COND_V_MSG(err, ERR_FILE_CORRUPT, vformat("Cannot create file '%s.uidren'.", p_path));
 

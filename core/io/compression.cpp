@@ -41,6 +41,37 @@
 #endif
 
 namespace {
+struct ZstdCompressorContext {
+	ZSTD_CCtx *zstd_c_ctx = nullptr;
+	int zstd_level = 0;
+	bool zstd_long_distance_matching = false;
+	int zstd_window_log_size = 0;
+
+	~ZstdCompressorContext() {
+		if (zstd_c_ctx) {
+			ZSTD_freeCCtx(zstd_c_ctx);
+		}
+	}
+
+	void invalidate(int p_zstd_level, bool p_zstd_long_distance_matching, int p_zstd_window_log_size) {
+		if (!zstd_c_ctx || zstd_level != p_zstd_level || zstd_long_distance_matching != p_zstd_long_distance_matching || zstd_window_log_size != p_zstd_window_log_size) {
+			if (zstd_c_ctx) {
+				ZSTD_freeCCtx(zstd_c_ctx);
+			}
+
+			zstd_c_ctx = ZSTD_createCCtx();
+			ZSTD_CCtx_setParameter(zstd_c_ctx, ZSTD_c_compressionLevel, p_zstd_level);
+			if (p_zstd_long_distance_matching) {
+				ZSTD_CCtx_setParameter(zstd_c_ctx, ZSTD_c_enableLongDistanceMatching, 1);
+				ZSTD_CCtx_setParameter(zstd_c_ctx, ZSTD_c_windowLog, p_zstd_window_log_size);
+			}
+			zstd_level = p_zstd_level;
+			zstd_long_distance_matching = p_zstd_long_distance_matching;
+			zstd_window_log_size = p_zstd_window_log_size;
+		}
+	}
+};
+
 struct ZstdDecompressorContext {
 	ZSTD_DCtx *zstd_d_ctx = nullptr;
 	bool zstd_long_distance_matching = false;
@@ -113,15 +144,16 @@ int64_t Compression::compress(uint8_t *p_dst, const uint8_t *p_src, int64_t p_sr
 
 		} break;
 		case MODE_ZSTD: {
-			ZSTD_CCtx *cctx = ZSTD_createCCtx();
-			ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, zstd_level);
-			if (zstd_long_distance_matching) {
-				ZSTD_CCtx_setParameter(cctx, ZSTD_c_enableLongDistanceMatching, 1);
-				ZSTD_CCtx_setParameter(cctx, ZSTD_c_windowLog, zstd_window_log_size);
-			}
+			// Reuse the context across calls; creating and freeing one per call is pure
+			// overhead when compressing a file in many small blocks.
+			thread_local ZstdCompressorContext compressor_ctx;
+			compressor_ctx.invalidate(zstd_level, zstd_long_distance_matching, zstd_window_log_size);
+
 			const int64_t max_dst_size = get_max_compressed_buffer_size(p_src_size, MODE_ZSTD);
-			const size_t ret = ZSTD_compressCCtx(cctx, p_dst, max_dst_size, p_src, p_src_size, zstd_level);
-			ZSTD_freeCCtx(cctx);
+			// ZSTD_compress2() honors the parameters pushed onto the context and always starts
+			// a new frame. ZSTD_compressCCtx() would reinitialize the parameters from the
+			// compression level alone, discarding the long distance matching settings.
+			const size_t ret = ZSTD_compress2(compressor_ctx.zstd_c_ctx, p_dst, max_dst_size, p_src, p_src_size);
 			return (int64_t)ret;
 		} break;
 	}
