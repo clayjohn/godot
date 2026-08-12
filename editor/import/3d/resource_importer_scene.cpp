@@ -89,10 +89,13 @@ void EditorSceneFormatImporter::add_import_option_advanced(Variant::Type p_type,
 	current_option_list->push_back(ResourceImporter::ImportOption(PropertyInfo(p_type, p_name, p_hint, p_hint_string, p_usage_flags), p_default_value));
 }
 
+thread_local List<ResourceImporter::ImportOption> *EditorSceneFormatImporter::current_option_list = nullptr;
+
 void EditorSceneFormatImporter::get_import_options(const String &p_path, List<ResourceImporter::ImportOption> *r_options) {
+	List<ResourceImporter::ImportOption> *prev_option_list = current_option_list;
 	current_option_list = r_options;
 	GDVIRTUAL_CALL(_get_import_options, p_path);
-	current_option_list = nullptr;
+	current_option_list = prev_option_list;
 }
 
 Variant EditorSceneFormatImporter::get_option_visibility(const String &p_path, const String &p_scene_import_type, const String &p_option, const HashMap<StringName, Variant> &p_options) {
@@ -145,6 +148,10 @@ void EditorScenePostImport::init(const String &p_source_file) {
 
 ///////////////////////////////////////////////////////
 
+thread_local const HashMap<StringName, Variant> *EditorScenePostImportPlugin::current_options = nullptr;
+thread_local const Dictionary *EditorScenePostImportPlugin::current_options_dict = nullptr;
+thread_local List<ResourceImporter::ImportOption> *EditorScenePostImportPlugin::current_option_list = nullptr;
+
 Variant EditorScenePostImportPlugin::get_option_value(const StringName &p_name) const {
 	ERR_FAIL_COND_V_MSG(current_options == nullptr && current_options_dict == nullptr, Variant(), "get_option_value called from a function where option values are not available.");
 	ERR_FAIL_COND_V_MSG(current_options && !current_options->has(p_name), Variant(), "get_option_value called with unexisting option argument: " + String(p_name));
@@ -167,56 +174,64 @@ void EditorScenePostImportPlugin::add_import_option_advanced(Variant::Type p_typ
 }
 
 void EditorScenePostImportPlugin::get_internal_import_options(InternalImportCategory p_category, List<ResourceImporter::ImportOption> *r_options) {
+	List<ResourceImporter::ImportOption> *prev_option_list = current_option_list;
 	current_option_list = r_options;
 	GDVIRTUAL_CALL(_get_internal_import_options, p_category);
-	current_option_list = nullptr;
+	current_option_list = prev_option_list;
 }
 
 Variant EditorScenePostImportPlugin::get_internal_option_visibility(InternalImportCategory p_category, const String &p_scene_import_type, const String &p_option, const HashMap<StringName, Variant> &p_options) const {
+	const HashMap<StringName, Variant> *prev_options = current_options;
 	current_options = &p_options;
 	Variant ret;
 	// For compatibility with the old API, pass the import type as a boolean.
 	GDVIRTUAL_CALL(_get_internal_option_visibility, p_category, p_scene_import_type == "AnimationLibrary", p_option, ret);
-	current_options = nullptr;
+	current_options = prev_options;
 	return ret;
 }
 
 Variant EditorScenePostImportPlugin::get_internal_option_update_view_required(InternalImportCategory p_category, const String &p_option, const HashMap<StringName, Variant> &p_options) const {
+	const HashMap<StringName, Variant> *prev_options = current_options;
 	current_options = &p_options;
 	Variant ret;
 	GDVIRTUAL_CALL(_get_internal_option_update_view_required, p_category, p_option, ret);
-	current_options = nullptr;
+	current_options = prev_options;
 	return ret;
 }
 
 void EditorScenePostImportPlugin::internal_process(InternalImportCategory p_category, Node *p_base_scene, Node *p_node, Ref<Resource> p_resource, const Dictionary &p_options) {
+	const Dictionary *prev_options_dict = current_options_dict;
 	current_options_dict = &p_options;
 	GDVIRTUAL_CALL(_internal_process, p_category, p_base_scene, p_node, p_resource);
-	current_options_dict = nullptr;
+	current_options_dict = prev_options_dict;
 }
 
 void EditorScenePostImportPlugin::get_import_options(const String &p_path, List<ResourceImporter::ImportOption> *r_options) {
+	List<ResourceImporter::ImportOption> *prev_option_list = current_option_list;
 	current_option_list = r_options;
 	GDVIRTUAL_CALL(_get_import_options, p_path);
-	current_option_list = nullptr;
+	current_option_list = prev_option_list;
 }
 Variant EditorScenePostImportPlugin::get_option_visibility(const String &p_path, const String &p_scene_import_type, const String &p_option, const HashMap<StringName, Variant> &p_options) const {
+	const HashMap<StringName, Variant> *prev_options = current_options;
 	current_options = &p_options;
 	Variant ret;
 	GDVIRTUAL_CALL(_get_option_visibility, p_path, p_scene_import_type == "AnimationLibrary", p_option, ret);
-	current_options = nullptr;
+	current_options = prev_options;
 	return ret;
 }
 
 void EditorScenePostImportPlugin::pre_process(Node *p_scene, const HashMap<StringName, Variant> &p_options) {
+	const HashMap<StringName, Variant> *prev_options = current_options;
 	current_options = &p_options;
 	GDVIRTUAL_CALL(_pre_process, p_scene);
-	current_options = nullptr;
+	current_options = prev_options;
 }
 void EditorScenePostImportPlugin::post_process(Node *p_scene, const HashMap<StringName, Variant> &p_options) {
+	const HashMap<StringName, Variant> *prev_options = current_options;
 	current_options = &p_options;
 	GDVIRTUAL_CALL(_post_process, p_scene);
-	current_options = nullptr;
+	current_options = prev_options;
 }
 
 void EditorScenePostImportPlugin::_bind_methods() {
@@ -3420,14 +3435,14 @@ Error ResourceImporterScene::import(ResourceUID::ID p_source_id, const String &p
 		}
 		Ref<Script> scr = ResourceLoader::load(post_import_script_path);
 		if (scr.is_null()) {
-			EditorNode::add_io_error(TTR("Couldn't load post-import script:") + " " + post_import_script_path);
+			callable_mp_static(&EditorNode::add_io_error).call_deferred(TTR("Couldn't load post-import script:") + " " + post_import_script_path);
 		} else if (scr->get_instance_base_type() != "EditorScenePostImport") {
-			EditorNode::add_io_error(TTR("Script is not a subtype of EditorScenePostImport:") + " " + post_import_script_path);
+			callable_mp_static(&EditorNode::add_io_error).call_deferred(TTR("Script is not a subtype of EditorScenePostImport:") + " " + post_import_script_path);
 		} else {
 			post_import_script.instantiate();
 			post_import_script->set_script(scr);
 			if (!post_import_script->get_script_instance()) {
-				EditorNode::add_io_error(TTR("Invalid/broken script for post-import (check console):") + " " + post_import_script_path);
+				callable_mp_static(&EditorNode::add_io_error).call_deferred(TTR("Invalid/broken script for post-import (check console):") + " " + post_import_script_path);
 				post_import_script.unref();
 				return ERR_CANT_CREATE;
 			}
@@ -3451,9 +3466,7 @@ Error ResourceImporterScene::import(ResourceUID::ID p_source_id, const String &p
 		post_import_script->init(p_source_file);
 		scene = post_import_script->post_import(scene);
 		if (!scene) {
-			EditorNode::add_io_error(
-					TTR("Error running post-import script:") + " " + post_import_script_path + "\n" +
-					TTR("Did you return a Node-derived object in the `_post_import()` method?"));
+			callable_mp_static(&EditorNode::add_io_error).call_deferred(TTR("Error running post-import script:") + " " + post_import_script_path + "\n" + TTR("Did you return a Node-derived object in the `_post_import()` method?"));
 			return err;
 		}
 	}

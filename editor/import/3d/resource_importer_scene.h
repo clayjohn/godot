@@ -49,7 +49,11 @@ class Material;
 class EditorSceneFormatImporter : public RefCounted {
 	GDCLASS(EditorSceneFormatImporter, RefCounted);
 
-	List<ResourceImporter::ImportOption> *current_option_list = nullptr;
+	// Scratch state, only valid for the duration of get_import_options(). Importer
+	// instances are shared by every import (see ResourceImporterScene's static
+	// scene_importers), and get_import_options() runs on the import thread, so this has
+	// to be per-thread. Saved and restored so a nested call cannot clear its caller's.
+	static thread_local List<ResourceImporter::ImportOption> *current_option_list;
 
 protected:
 	static void _bind_methods();
@@ -116,9 +120,14 @@ public:
 	};
 
 private:
-	mutable const HashMap<StringName, Variant> *current_options = nullptr;
-	mutable const Dictionary *current_options_dict = nullptr;
-	List<ResourceImporter::ImportOption> *current_option_list = nullptr;
+	// Scratch state, only valid for the duration of the synchronous call that sets it.
+	// Plugin instances are shared by every import (see ResourceImporterScene's static
+	// post_importer_plugins), so this has to be per-thread or concurrent imports would
+	// read each other's options. Each setter saves and restores the previous value so
+	// that a nested plugin call does not clear the state its caller is still using.
+	static thread_local const HashMap<StringName, Variant> *current_options;
+	static thread_local const Dictionary *current_options_dict;
+	static thread_local List<ResourceImporter::ImportOption> *current_option_list;
 
 protected:
 	GDVIRTUAL1(_get_internal_import_options, int)
@@ -255,6 +264,7 @@ public:
 	virtual String get_save_extension() const override;
 	virtual String get_resource_type() const override;
 	virtual int get_format_version() const override;
+	virtual bool can_import_threaded() const override { return true; }
 
 	virtual int get_preset_count() const override;
 	virtual String get_preset_name(int p_idx) const override;
