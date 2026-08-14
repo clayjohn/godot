@@ -158,10 +158,10 @@ void axis_angle_to_tbn(vec3 axis, float angle, out vec3 tangent, out vec3 binorm
 }
 
 #ifdef USE_INSTANCING
-layout(location = 12) in highp vec4 instance_xform0;
-layout(location = 13) in highp vec4 instance_xform1;
-layout(location = 14) in highp vec4 instance_xform2;
-layout(location = 15) in highp uvec4 instance_color_custom_data; // Color packed into xy, Custom data into zw.
+//layout(location = 12) in highp vec4 instance_xform0;
+//layout(location = 13) in highp vec4 instance_xform1;
+//layout(location = 14) in highp vec4 instance_xform2;
+layout(location = 15) in highp vec4 instance_color_custom_data; // Color packed into xy, Custom data into zw.
 #endif
 
 #if defined(RENDER_MOTION_VECTORS)
@@ -171,7 +171,7 @@ layout(location = 17) in highp vec4 prev_normal_attrib;
 layout(location = 18) in highp vec4 prev_instance_xform0;
 layout(location = 19) in highp vec4 prev_instance_xform1;
 layout(location = 20) in highp vec4 prev_instance_xform2;
-layout(location = 21) in highp uvec4 prev_instance_color_custom_data;
+layout(location = 21) in highp vec4 prev_instance_color_custom_data;
 #endif // USE_INSTANCING
 #endif // RENDER_MOTION_VECTORS
 
@@ -583,8 +583,7 @@ void vertex_shader(vec4 vertex_angle_attrib_input,
 		uint model_flags_input,
 		SceneData scene_data_input,
 #ifdef USE_INSTANCING
-		vec4 instance_xform0_input, vec4 instance_xform1_input, vec4 instance_xform2_input,
-		uvec4 instance_color_custom_data_input,
+		vec4 instance_color_custom_data_input,
 #endif
 #ifdef NORMAL_USED
 		vec4 axis_tangent_attrib_input,
@@ -608,10 +607,6 @@ void vertex_shader(vec4 vertex_angle_attrib_input,
 	highp vec3 vertex = vertex_angle_attrib_input.xyz * compressed_aabb_size_input + compressed_aabb_position_input;
 
 	highp mat4 model_matrix = world_transform_input;
-#ifdef USE_INSTANCING
-	highp mat4 m = mat4(instance_xform0_input, instance_xform1_input, instance_xform2_input, vec4(0.0, 0.0, 0.0, 1.0));
-	model_matrix = model_matrix * transpose(m);
-#endif
 
 #ifdef NORMAL_USED
 	vec3 normal = oct_to_vec3(axis_tangent_attrib_input.xy * 2.0 - 1.0);
@@ -649,12 +644,6 @@ void vertex_shader(vec4 vertex_angle_attrib_input,
 
 #if defined(COLOR_USED)
 	color_interp = color_attrib_input;
-#ifdef USE_INSTANCING
-	vec4 instance_color;
-	instance_color.xy = unpackHalf2x16(instance_color_custom_data_input.x);
-	instance_color.zw = unpackHalf2x16(instance_color_custom_data_input.y);
-	color_interp *= instance_color;
-#endif
 #endif
 
 #if defined(UV_USED)
@@ -685,9 +674,7 @@ void vertex_shader(vec4 vertex_angle_attrib_input,
 #endif //!USE_MULTIVIEW
 
 #ifdef USE_INSTANCING
-	vec4 instance_custom;
-	instance_custom.xy = unpackHalf2x16(instance_color_custom_data_input.z);
-	instance_custom.zw = unpackHalf2x16(instance_color_custom_data_input.w);
+	vec4 instance_custom = instance_color_custom_data_input;
 #else
 	vec4 instance_custom = vec4(0.0);
 #endif
@@ -914,25 +901,6 @@ void vertex_shader(vec4 vertex_angle_attrib_input,
 void main() {
 #if defined(RENDER_MOTION_VECTORS)
 
-#ifdef USE_INSTANCING
-	// Check for inactive particle instances.
-	highp vec4 input_instance_xform0;
-	highp vec4 input_instance_xform1;
-	highp vec4 input_instance_xform2;
-	highp uvec4 input_instance_color_custom_data;
-	if (prev_instance_xform0.xyz == vec3(0.0, 0.0, 0.0)) {
-		input_instance_xform0 = instance_xform0;
-		input_instance_xform1 = instance_xform1;
-		input_instance_xform2 = instance_xform2;
-		input_instance_color_custom_data = instance_color_custom_data;
-	} else {
-		input_instance_xform0 = prev_instance_xform0;
-		input_instance_xform1 = prev_instance_xform1;
-		input_instance_xform2 = prev_instance_xform2;
-		input_instance_color_custom_data = prev_instance_color_custom_data;
-	}
-#endif
-
 	vertex_shader(prev_vertex_attrib,
 			compressed_aabb_size,
 			compressed_aabb_position,
@@ -940,8 +908,7 @@ void main() {
 			model_flags,
 			prev_scene_data_block.data,
 #ifdef USE_INSTANCING
-			input_instance_xform0, input_instance_xform1, input_instance_xform2,
-			input_instance_color_custom_data,
+			prev_instance_color_custom_data,
 #endif
 #ifdef NORMAL_USED
 			prev_normal_attrib,
@@ -973,7 +940,6 @@ void main() {
 			model_flags,
 			scene_data_block.data,
 #ifdef USE_INSTANCING
-			instance_xform0, instance_xform1, instance_xform2,
 			instance_color_custom_data,
 #endif
 #ifdef NORMAL_USED

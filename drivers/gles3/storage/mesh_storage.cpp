@@ -1609,17 +1609,13 @@ void MeshStorage::_multimesh_allocate_data(RID p_multimesh, int p_instances, RSE
 		multimesh->data_cache_used_dirty_regions = 0;
 	}
 
-	// If we have either color or custom data, reserve space for both to make data handling logic simpler.
-	// This way we can always treat them both as a single, compressed uvec4.
-	int color_and_custom_strides = (p_use_colors || p_use_custom_data) ? 2 : 0;
-
 	multimesh->instances = p_instances;
-	multimesh->xform_format = p_transform_format;
-	multimesh->uses_colors = p_use_colors;
-	multimesh->color_offset_cache = p_transform_format == RSE::MULTIMESH_TRANSFORM_2D ? 8 : 12;
-	multimesh->uses_custom_data = p_use_custom_data;
-	multimesh->custom_data_offset_cache = multimesh->color_offset_cache + color_and_custom_strides;
-	multimesh->stride_cache = multimesh->custom_data_offset_cache + color_and_custom_strides;
+	multimesh->xform_format = RSE::MULTIMESH_TRANSFORM_DISABLED;
+	multimesh->uses_colors = false;
+	multimesh->color_offset_cache = 0;
+	multimesh->uses_custom_data = true;
+	multimesh->custom_data_offset_cache = 0;
+	multimesh->stride_cache = 4;
 	multimesh->buffer_set = false;
 
 	multimesh->data_cache = Vector<float>();
@@ -1755,7 +1751,7 @@ void MeshStorage::_multimesh_mark_all_dirty(MultiMesh *multimesh, bool p_data, b
 
 void MeshStorage::_multimesh_re_create_aabb(MultiMesh *multimesh, const float *p_data, int p_instances) {
 	ERR_FAIL_COND(multimesh->mesh.is_null());
-	if (multimesh->custom_aabb != AABB()) {
+	if (multimesh->custom_aabb != AABB() || multimesh->xform_format == RSE::MULTIMESH_TRANSFORM_DISABLED) {
 		return;
 	}
 	AABB aabb;
@@ -1868,7 +1864,7 @@ void MeshStorage::_multimesh_instance_set_color(RID p_multimesh, int p_index, co
 
 		float *dataptr = w + p_index * multimesh->stride_cache + multimesh->color_offset_cache;
 		uint16_t val[4] = { Math::make_half_float(p_color.r), Math::make_half_float(p_color.g), Math::make_half_float(p_color.b), Math::make_half_float(p_color.a) };
-		memcpy(dataptr, val, 2 * 4);
+		memcpy(dataptr, val, sizeof(uint16_t) * 4);
 	}
 
 	_multimesh_mark_dirty(multimesh, p_index, false);
@@ -1886,8 +1882,8 @@ void MeshStorage::_multimesh_instance_set_custom_data(RID p_multimesh, int p_ind
 		float *w = multimesh->data_cache.ptrw();
 
 		float *dataptr = w + p_index * multimesh->stride_cache + multimesh->custom_data_offset_cache;
-		uint16_t val[4] = { Math::make_half_float(p_color.r), Math::make_half_float(p_color.g), Math::make_half_float(p_color.b), Math::make_half_float(p_color.a) };
-		memcpy(dataptr, val, 2 * 4);
+		float val[4] = { (p_color.r), (p_color.g), (p_color.b), (p_color.a) };
+		memcpy(dataptr, val, sizeof(float) * 4);
 	}
 
 	_multimesh_mark_dirty(multimesh, p_index, false);
@@ -2042,7 +2038,7 @@ void MeshStorage::_multimesh_set_buffer(RID p_multimesh, const Vector<float> &p_
 
 		_multimesh_make_local(multimesh);
 
-		uint32_t old_stride = multimesh->xform_format == RSE::MULTIMESH_TRANSFORM_2D ? 8 : 12;
+		uint32_t old_stride = 0;
 		old_stride += multimesh->uses_colors ? 4 : 0;
 		old_stride += multimesh->uses_custom_data ? 4 : 0;
 		ERR_FAIL_COND(p_buffer.size() != (multimesh->instances * (int)old_stride));
@@ -2052,7 +2048,7 @@ void MeshStorage::_multimesh_set_buffer(RID p_multimesh, const Vector<float> &p_
 		float *w = multimesh->data_cache.ptrw();
 
 		for (int i = 0; i < multimesh->instances; i++) {
-			{
+			if (multimesh->xform_format != RSE::MULTIMESH_TRANSFORM_DISABLED) {
 				float *dataptr = w + i * old_stride;
 				float *newptr = w + i * multimesh->stride_cache;
 				float vals[8] = { dataptr[0], dataptr[1], dataptr[2], dataptr[3], dataptr[4], dataptr[5], dataptr[6], dataptr[7] };
@@ -2073,7 +2069,7 @@ void MeshStorage::_multimesh_set_buffer(RID p_multimesh, const Vector<float> &p_
 				memcpy(newptr, val, 2 * 4);
 			}
 			if (multimesh->uses_custom_data) {
-				float *dataptr = w + i * old_stride + (multimesh->xform_format == RSE::MULTIMESH_TRANSFORM_2D ? 8 : 12) + (multimesh->uses_colors ? 4 : 0);
+				float *dataptr = w + i * old_stride;
 				float *newptr = w + i * multimesh->stride_cache + multimesh->custom_data_offset_cache;
 				uint16_t val[4] = { Math::make_half_float(dataptr[0]), Math::make_half_float(dataptr[1]), Math::make_half_float(dataptr[2]), Math::make_half_float(dataptr[3]) };
 				memcpy(newptr, val, 2 * 4);
@@ -2085,7 +2081,6 @@ void MeshStorage::_multimesh_set_buffer(RID p_multimesh, const Vector<float> &p_
 		glBindBuffer(GL_ARRAY_BUFFER, multimesh->buffer[buffer_index]);
 		glBufferData(GL_ARRAY_BUFFER, multimesh->data_cache.size() * sizeof(float), r, GL_STATIC_DRAW);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
-
 	} else {
 		// If we have a data cache, just update it.
 		if (multimesh->data_cache.size()) {
@@ -2151,7 +2146,7 @@ Vector<float> MeshStorage::_multimesh_get_buffer(RID p_multimesh) const {
 	}
 	if (multimesh->uses_colors || multimesh->uses_custom_data) {
 		// Need to decompress buffer.
-		uint32_t new_stride = multimesh->xform_format == RSE::MULTIMESH_TRANSFORM_2D ? 8 : 12;
+		uint32_t new_stride = 0;
 		new_stride += multimesh->uses_colors ? 4 : 0;
 		new_stride += multimesh->uses_custom_data ? 4 : 0;
 
@@ -2161,7 +2156,7 @@ Vector<float> MeshStorage::_multimesh_get_buffer(RID p_multimesh) const {
 		const float *r = ret.ptr();
 
 		for (int i = 0; i < multimesh->instances; i++) {
-			{
+			if (multimesh->xform_format != RSE::MULTIMESH_TRANSFORM_DISABLED) {
 				float *newptr = w + i * new_stride;
 				const float *oldptr = r + i * multimesh->stride_cache;
 				float vals[8] = { oldptr[0], oldptr[1], oldptr[2], oldptr[3], oldptr[4], oldptr[5], oldptr[6], oldptr[7] };
@@ -2186,7 +2181,7 @@ Vector<float> MeshStorage::_multimesh_get_buffer(RID p_multimesh) const {
 				newptr[3] = Math::half_to_float(raw_data[3]);
 			}
 			if (multimesh->uses_custom_data) {
-				float *newptr = w + i * new_stride + (multimesh->xform_format == RSE::MULTIMESH_TRANSFORM_2D ? 8 : 12) + (multimesh->uses_colors ? 4 : 0);
+				float *newptr = w + i * new_stride;
 				const float *oldptr = r + i * multimesh->stride_cache + multimesh->custom_data_offset_cache;
 				uint16_t raw_data[4];
 				memcpy(raw_data, oldptr, 2 * 4);
