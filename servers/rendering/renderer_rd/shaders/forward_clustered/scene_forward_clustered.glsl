@@ -2338,9 +2338,24 @@ void fragment_shader(in SceneData scene_data) {
 
 		// cheap luminance approximation
 		float f90 = clamp(50.0 * f0.g, metallic, 1.0);
-		vec3 E = energy_compensation * ((f90 - f0) * envBRDF.x + f0 * envBRDF.y);
-		indirect_specular_light *= E;
-		ambient_light *= 1.0 - E;
+		//vec3 E = energy_compensation * ((f90 - f0) * envBRDF.x + f0 * envBRDF.y);
+		//indirect_specular_light *= E;
+		//ambient_light *= 1.0 - E;
+
+		// Multiscattering approximation (Fdez-Aguera 2019)
+		// https://jcgt.org/published/0008/01/03/paper.pdf
+		vec2 dfg = envBRDF.yx;
+		vec3 single_scatter_term = f0 * dfg.x + (f90 - f0) * dfg.y;
+		float single_scatter_energy = dfg.x + dfg.y;
+		float multi_scatter_energy = clamp(1.0 - single_scatter_energy, 0.0, 1.0);
+
+		vec3 average_fresnel = f0 + (1.0 - f0) * (1.0 / 21.0);
+		vec3 multi_scatter_term = multi_scatter_energy * single_scatter_term * average_fresnel / (1.0 - average_fresnel * multi_scatter_energy);
+
+		vec3 diffuse_coef = (1.0 - single_scatter_term - multi_scatter_term);
+
+		indirect_specular_light = single_scatter_term * indirect_specular_light;
+		ambient_light = (multi_scatter_term + diffuse_coef) * ambient_light;
 
 #ifdef LIGHT_CLEARCOAT_USED
 		float geo_NdotV = max(dot(geo_normal, view), 0.0001); // We want to use geometric normal, not normal_map
@@ -3148,7 +3163,7 @@ void fragment_shader(in SceneData scene_data) {
 
 	// apply metallic
 	diffuse_light *= 1.0 - metallic;
-	ambient_light *= 1.0 - metallic;
+	//ambient_light *= 1.0 - metallic;
 
 #ifndef FOG_DISABLED
 	//restore fog
