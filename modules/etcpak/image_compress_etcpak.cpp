@@ -35,6 +35,15 @@
 #include "core/os/os.h"
 #include "core/string/print_string.h"
 
+#include "modules/modules_enabled.gen.h" // For icbc, stb_dxt.
+
+#ifdef MODULE_STB_DXT_ENABLED
+#include "modules/stb_dxt/image_compress_stb_dxt.h"
+#endif
+#ifdef MODULE_ICBC_ENABLED
+#include "modules/icbc/image_compress_icbc.h"
+#endif
+
 #include <ProcessDxtc.hpp>
 #include <ProcessRGB.hpp>
 
@@ -87,7 +96,23 @@ void _compress_etc2(Image *r_img, Image::UsedChannels p_channels) {
 }
 
 void _compress_bc(Image *r_img, Image::UsedChannels p_channels) {
-	_compress_etcpak(_determine_dxt_type(p_channels), r_img);
+	const EtcpakType type = _determine_dxt_type(p_channels);
+
+	// stb_dxt and ICBC both produce higher quality BC1 than etcpak.
+	// If both are enabled, stb_dxt is used.
+#if defined(MODULE_STB_DXT_ENABLED)
+	if (type == EtcpakType::ETCPAK_TYPE_DXT1) {
+		_compress_stb_dxt_bc1(r_img);
+		return;
+	}
+#elif defined(MODULE_ICBC_ENABLED)
+	if (type == EtcpakType::ETCPAK_TYPE_DXT1) {
+		_compress_icbc_bc1(r_img);
+		return;
+	}
+#endif
+
+	_compress_etcpak(type, r_img);
 }
 
 void _compress_etcpak(EtcpakType p_compress_type, Image *r_img) {
@@ -258,7 +283,7 @@ void _compress_etcpak(EtcpakType p_compress_type, Image *r_img) {
 
 		switch (p_compress_type) {
 			case EtcpakType::ETCPAK_TYPE_ETC1:
-				CompressEtc1RgbDither(src_mip_read, dest_mip_write, blocks, dest_mip_w);
+				CompressEtc1Rgb(src_mip_read, dest_mip_write, blocks, dest_mip_w);
 				break;
 
 			case EtcpakType::ETCPAK_TYPE_ETC2:
@@ -279,7 +304,7 @@ void _compress_etcpak(EtcpakType p_compress_type, Image *r_img) {
 				break;
 
 			case EtcpakType::ETCPAK_TYPE_DXT1:
-				CompressBc1Dither(src_mip_read, dest_mip_write, blocks, dest_mip_w);
+				CompressBc1(src_mip_read, dest_mip_write, blocks, dest_mip_w);
 				break;
 
 			case EtcpakType::ETCPAK_TYPE_DXT5:

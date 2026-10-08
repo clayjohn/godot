@@ -112,8 +112,10 @@
 /modules/gltf/editor/                         @godotengine/asset-pipeline @godotengine/editor
 /modules/gltf/tests/                          @godotengine/asset-pipeline @godotengine/tests
 /modules/hdr/                                 @godotengine/asset-pipeline
+/modules/icbc/                                @godotengine/asset-pipeline
 /modules/jpg/                                 @godotengine/asset-pipeline
 /modules/ktx/                                 @godotengine/asset-pipeline
+/modules/stb_dxt/                             @godotengine/asset-pipeline
 /modules/svg/                                 @godotengine/asset-pipeline
 /modules/tga/                                 @godotengine/asset-pipeline
 /modules/tinyexr/                             @godotengine/asset-pipeline

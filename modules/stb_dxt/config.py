@@ -1,0 +1,18 @@
+def can_build(env, platform):
+    return env.editor_build or env["stb_dxt_export_templates"]
+
+
+def get_opts(platform):
+    from SCons.Variables import BoolVariable
+
+    return [
+        BoolVariable(
+            "stb_dxt_export_templates",
+            "Enable stb_dxt BC1 image compression in export template builds (increases binary size)",
+            False,
+        ),
+    ]
+
+
+def configure(env):
+    pass

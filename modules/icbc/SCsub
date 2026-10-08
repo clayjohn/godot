@@ -1,0 +1,30 @@
+#!/usr/bin/env python
+from misc.utility.scons_hints import *
+
+Import("env")
+Import("env_modules")
+
+env_icbc = env_modules.Clone()
+
+# Thirdparty source files
+
+thirdparty_obj = []
+
+thirdparty_dir = "#thirdparty/icbc/"
+
+env_icbc.Prepend(CPPPATH=[thirdparty_dir])
+
+env_thirdparty = env_icbc.Clone()
+env_thirdparty.disable_warnings()
+env_thirdparty.add_source_files(thirdparty_obj, ["icbc_implementation.cpp"])
+env.modules_sources += thirdparty_obj
+
+# Godot source files
+
+module_obj = []
+
+env_icbc.add_source_files(module_obj, ["image_compress_icbc.cpp", "register_types.cpp"])
+env.modules_sources += module_obj
+
+# Needed to force rebuilding the module files when the thirdparty library is updated.
+env.Depends(module_obj, thirdparty_obj)

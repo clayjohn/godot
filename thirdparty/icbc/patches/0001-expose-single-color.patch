@@ -1,0 +1,27 @@
+diff --git a/thirdparty/icbc/icbc.h b/thirdparty/icbc/icbc.h
+--- a/thirdparty/icbc/icbc.h
++++ b/thirdparty/icbc/icbc.h
+@@ -46,6 +46,7 @@
+     //float evaluate_bc5_error(const float rgba_block[16 * 4], const void * block, bool snorm, Decoder decoder = Decoder_D3D10);
+ 
+     float compress_bc1(Quality level, const float * input_colors, const float * input_weights, const float color_weights[3], bool three_color_mode, bool three_color_black, void * output);
++    void compress_bc1_single_color(unsigned char r, unsigned char g, unsigned char b, void * output);
+     float compress_bc3(Quality level, const float * input_colors, const float * input_weights, const float color_weights[3], bool six_alpha_mode, void * output);
+     //float compress_bc4(Quality level, const float * input_colors, const float * input_weights, bool snorm, bool six_alpha_mode, void * output);
+     //float compress_bc5(Quality level, const float * input_colors, const float * input_weights, bool snorm, bool six_alpha_mode, void * output);
+@@ -3847,6 +3848,15 @@
+     return compress_bc1(level, (Vector4*)input_colors, input_weights, { rgb[0], rgb[1], rgb[2] }, three_color_mode, three_color_black, (BlockBC1*)output);
+ }
+ 
++void compress_bc1_single_color(unsigned char r, unsigned char g, unsigned char b, void * output) {
++    Color32 c;
++    c.r = r;
++    c.g = g;
++    c.b = b;
++    c.a = 255;
++    compress_dxt1_single_color_optimal(c, (BlockBC1*)output);
++}
++
+ float compress_bc3(Quality level, const float * input_colors, const float * input_weights, const float rgb[3], bool six_alpha_mode, void * output) {
+     //return compress_bc3(level, (Vector4*)input_colors, input_weights, { rgb[0], rgb[1], rgb[2] }, six_alpha_mode, (BlockBC3*)output);
+     return 0.0f; // @@ 

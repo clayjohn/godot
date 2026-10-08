@@ -1,0 +1,386 @@
+diff --git a/thirdparty/misc/stb_dxt.h b/thirdparty/misc/stb_dxt.h
+--- a/thirdparty/misc/stb_dxt.h
++++ b/thirdparty/misc/stb_dxt.h
+@@ -92,6 +92,24 @@
+ #define STBD_FABS(x)          fabs(x)
+ #endif
+ 
++// STB_DXT_SIMD
++//     instruction set used by the color block encoder, chosen at compile time. set it to one of
++//     the values below to override the automatic selection. all paths produce identical output.
++#define STB_DXT_SCALAR 0
++#define STB_DXT_SSE2   1
++
++#ifndef STB_DXT_SIMD
++   #if defined(__SSE2__) || defined(_M_X64) || defined(_M_AMD64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
++      #define STB_DXT_SIMD STB_DXT_SSE2
++   #else
++      #define STB_DXT_SIMD STB_DXT_SCALAR
++   #endif
++#endif
++
++#if STB_DXT_SIMD == STB_DXT_SSE2
++#include <emmintrin.h>
++#endif
++
+ static const unsigned char stb__OMatch5[256][2] = {
+    {  0,  0 }, {  0,  0 }, {  0,  1 }, {  0,  1 }, {  1,  0 }, {  1,  0 }, {  1,  0 }, {  1,  1 },
+    {  1,  1 }, {  1,  1 }, {  1,  2 }, {  0,  4 }, {  2,  1 }, {  2,  1 }, {  2,  1 }, {  2,  2 },
+@@ -475,6 +493,329 @@
+    return oldMin != min16 || oldMax != max16;
+ }
+ 
++#if STB_DXT_SIMD == STB_DXT_SSE2
++
++// SSE2 versions of the functions above. They produce exactly the same results; all per-pixel
++// math is done in integers, and the remaining float math is identical scalar code.
++
++// The block's channels, widened to 16 bits. c[ch][0] holds pixels 0-7, c[ch][1] pixels 8-15.
++typedef struct
++{
++   __m128i c[3][2];
++} stb__BlockSSE2;
++
++static void stb__LoadBlock_SSE2(stb__BlockSSE2 *out, const unsigned char *block)
++{
++   const __m128i m = _mm_set1_epi32(0xff);
++   __m128i p0 = _mm_loadu_si128((const __m128i *) (block +  0));
++   __m128i p1 = _mm_loadu_si128((const __m128i *) (block + 16));
++   __m128i p2 = _mm_loadu_si128((const __m128i *) (block + 32));
++   __m128i p3 = _mm_loadu_si128((const __m128i *) (block + 48));
++   int ch;
++
++   for (ch=0;ch<3;ch++) {
++      out->c[ch][0] = _mm_packs_epi32(_mm_and_si128(p0, m), _mm_and_si128(p1, m));
++      out->c[ch][1] = _mm_packs_epi32(_mm_and_si128(p2, m), _mm_and_si128(p3, m));
++      p0 = _mm_srli_epi32(p0, 8);
++      p1 = _mm_srli_epi32(p1, 8);
++      p2 = _mm_srli_epi32(p2, 8);
++      p3 = _mm_srli_epi32(p3, 8);
++   }
++}
++
++static int stb__HSum32_SSE2(__m128i v)
++{
++   v = _mm_add_epi32(v, _mm_shuffle_epi32(v, _MM_SHUFFLE(1,0,3,2)));
++   v = _mm_add_epi32(v, _mm_shuffle_epi32(v, _MM_SHUFFLE(2,3,0,1)));
++   return _mm_cvtsi128_si32(v);
++}
++
++// Sum over all 16 pixels of a[i]*b[i], where a and b are 16-bit.
++static int stb__Dot16_SSE2(const __m128i a[2], const __m128i b[2])
++{
++   return stb__HSum32_SSE2(_mm_add_epi32(_mm_madd_epi16(a[0], b[0]), _mm_madd_epi16(a[1], b[1])));
++}
++
++static int stb__HMin16_SSE2(__m128i v)
++{
++   v = _mm_min_epi16(v, _mm_shuffle_epi32(v, _MM_SHUFFLE(1,0,3,2)));
++   v = _mm_min_epi16(v, _mm_shuffle_epi32(v, _MM_SHUFFLE(2,3,0,1)));
++   v = _mm_min_epi16(v, _mm_srli_epi32(v, 16));
++   return _mm_cvtsi128_si32(v) & 0xffff;
++}
++
++static int stb__HMax16_SSE2(__m128i v)
++{
++   v = _mm_max_epi16(v, _mm_shuffle_epi32(v, _MM_SHUFFLE(1,0,3,2)));
++   v = _mm_max_epi16(v, _mm_shuffle_epi32(v, _MM_SHUFFLE(2,3,0,1)));
++   v = _mm_max_epi16(v, _mm_srli_epi32(v, 16));
++   return _mm_cvtsi128_si32(v) & 0xffff;
++}
++
++// SSE2 has no 32-bit min/max.
++static __m128i stb__Min32_SSE2(__m128i a, __m128i b)
++{
++   __m128i lt = _mm_cmplt_epi32(a, b);
++   return _mm_or_si128(_mm_and_si128(lt, a), _mm_andnot_si128(lt, b));
++}
++
++static __m128i stb__Max32_SSE2(__m128i a, __m128i b)
++{
++   __m128i gt = _mm_cmpgt_epi32(a, b);
++   return _mm_or_si128(_mm_and_si128(gt, a), _mm_andnot_si128(gt, b));
++}
++
++// 16-bit mask with a bit set for each pixel where dots[] equals value.
++static int stb__MaskEq32_SSE2(const __m128i dots[4], __m128i value)
++{
++   int k, mask = 0;
++   for (k=0;k<4;k++)
++      mask |= _mm_movemask_ps(_mm_castsi128_ps(_mm_cmpeq_epi32(dots[k], value))) << (k*4);
++   return mask;
++}
++
++// 16-bit mask with a bit set for each pixel where dots[] is less than value.
++static int stb__MaskLt32_SSE2(const __m128i dots[4], __m128i value)
++{
++   int k, mask = 0;
++   for (k=0;k<4;k++)
++      mask |= _mm_movemask_ps(_mm_castsi128_ps(_mm_cmplt_epi32(dots[k], value))) << (k*4);
++   return mask;
++}
++
++static int stb__LowestBit(int mask)
++{
++   int i = 0;
++   while (!(mask & 1)) {
++      mask >>= 1;
++      i++;
++   }
++   return i;
++}
++
++// Spreads the low 16 bits of x to the even bits of the result.
++static unsigned int stb__SpreadBits(unsigned int x)
++{
++   x &= 0xffff;
++   x = (x | (x << 8)) & 0x00ff00ff;
++   x = (x | (x << 4)) & 0x0f0f0f0f;
++   x = (x | (x << 2)) & 0x33333333;
++   x = (x | (x << 1)) & 0x55555555;
++   return x;
++}
++
++// dots[k] holds r*vr + g*vg + b*vb for pixels 4k to 4k+3. vr, vg and vb must fit in 16 bits.
++static void stb__DotAxis_SSE2(__m128i dots[4], const stb__BlockSSE2 *sb, int vr, int vg, int vb)
++{
++   const __m128i vrg = _mm_setr_epi16((short)vr, (short)vg, (short)vr, (short)vg, (short)vr, (short)vg, (short)vr, (short)vg);
++   const __m128i vb0 = _mm_setr_epi16((short)vb, 0, (short)vb, 0, (short)vb, 0, (short)vb, 0);
++   const __m128i zero = _mm_setzero_si128();
++   int h;
++
++   for (h=0;h<2;h++) {
++      __m128i r = sb->c[0][h], g = sb->c[1][h], bl = sb->c[2][h];
++      dots[h*2+0] = _mm_add_epi32(_mm_madd_epi16(_mm_unpacklo_epi16(r, g), vrg), _mm_madd_epi16(_mm_unpacklo_epi16(bl, zero), vb0));
++      dots[h*2+1] = _mm_add_epi32(_mm_madd_epi16(_mm_unpackhi_epi16(r, g), vrg), _mm_madd_epi16(_mm_unpackhi_epi16(bl, zero), vb0));
++   }
++}
++
++static unsigned int stb__MatchColorsBlock_SSE2(const stb__BlockSSE2 *sb, unsigned char *color)
++{
++   int dirr = color[0*4+0] - color[1*4+0];
++   int dirg = color[0*4+1] - color[1*4+1];
++   int dirb = color[0*4+2] - color[1*4+2];
++   __m128i dots[4];
++   int stops[4];
++   int i, k, half, c0, c3;
++   __m128i halfPoint, c0Point, c3Point;
++
++   for(i=0;i<4;i++)
++      stops[i] = color[i*4+0]*dirr + color[i*4+1]*dirg + color[i*4+2]*dirb;
++
++   c0Point   = _mm_set1_epi32(stops[1] + stops[3]);
++   halfPoint = _mm_set1_epi32(stops[3] + stops[2]);
++   c3Point   = _mm_set1_epi32(stops[2] + stops[0]);
++
++   stb__DotAxis_SSE2(dots, sb, dirr, dirg, dirb);
++   for (k=0;k<4;k++)
++      dots[k] = _mm_add_epi32(dots[k], dots[k]);
++
++   half = stb__MaskLt32_SSE2(dots, halfPoint);
++   c0 = stb__MaskLt32_SSE2(dots, c0Point);
++   c3 = stb__MaskLt32_SSE2(dots, c3Point);
++
++   // below half: index 1 if below c0, else 3. above half: index 2 if below c3, else 0.
++   return stb__SpreadBits(half) | (stb__SpreadBits((half & ~c0) | (~half & c3)) << 1);
++}
++
++static void stb__OptimizeColorsBlock_SSE2(const stb__BlockSSE2 *sb, const unsigned char *block, unsigned short *pmax16, unsigned short *pmin16)
++{
++  double magn;
++  int v_r,v_g,v_b;
++  static const int nIterPower = 4;
++  float covf[6],vfr,vfg,vfb;
++
++  // determine color distribution
++  const __m128i ones = _mm_set1_epi16(1);
++  const __m128i ones2[2] = { ones, ones };
++  __m128i d[3][2];
++  __m128i dots[4];
++  __m128i mn, mx;
++  int cov[6];
++  int mu[3],min[3],max[3];
++  int ch,i,iter;
++
++  for(ch=0;ch<3;ch++)
++  {
++    __m128i muv;
++
++    mu[ch] = (stb__Dot16_SSE2(sb->c[ch], ones2) + 8) >> 4;
++    min[ch] = stb__HMin16_SSE2(_mm_min_epi16(sb->c[ch][0], sb->c[ch][1]));
++    max[ch] = stb__HMax16_SSE2(_mm_max_epi16(sb->c[ch][0], sb->c[ch][1]));
++
++    muv = _mm_set1_epi16((short)mu[ch]);
++    d[ch][0] = _mm_sub_epi16(sb->c[ch][0], muv);
++    d[ch][1] = _mm_sub_epi16(sb->c[ch][1], muv);
++  }
++
++  // determine covariance matrix
++  cov[0] = stb__Dot16_SSE2(d[0], d[0]);
++  cov[1] = stb__Dot16_SSE2(d[0], d[1]);
++  cov[2] = stb__Dot16_SSE2(d[0], d[2]);
++  cov[3] = stb__Dot16_SSE2(d[1], d[1]);
++  cov[4] = stb__Dot16_SSE2(d[1], d[2]);
++  cov[5] = stb__Dot16_SSE2(d[2], d[2]);
++
++  // convert covariance matrix to float, find principal axis via power iter
++  for(i=0;i<6;i++)
++    covf[i] = cov[i] / 255.0f;
++
++  vfr = (float) (max[0] - min[0]);
++  vfg = (float) (max[1] - min[1]);
++  vfb = (float) (max[2] - min[2]);
++
++  for(iter=0;iter<nIterPower;iter++)
++  {
++    float r = vfr*covf[0] + vfg*covf[1] + vfb*covf[2];
++    float g = vfr*covf[1] + vfg*covf[3] + vfb*covf[4];
++    float b = vfr*covf[2] + vfg*covf[4] + vfb*covf[5];
++
++    vfr = r;
++    vfg = g;
++    vfb = b;
++  }
++
++  magn = STBD_FABS(vfr);
++  if (STBD_FABS(vfg) > magn) magn = STBD_FABS(vfg);
++  if (STBD_FABS(vfb) > magn) magn = STBD_FABS(vfb);
++
++   if(magn < 4.0f) { // too small, default to luminance
++      v_r = 299; // JPEG YCbCr luma coefs, scaled by 1000.
++      v_g = 587;
++      v_b = 114;
++   } else {
++      magn = 512.0 / magn;
++      v_r = (int) (vfr * magn);
++      v_g = (int) (vfg * magn);
++      v_b = (int) (vfb * magn);
++   }
++
++   // Pick colors at extreme points. Ties go to the first pixel, as in the scalar version.
++   stb__DotAxis_SSE2(dots, sb, v_r, v_g, v_b);
++
++   mn = stb__Min32_SSE2(stb__Min32_SSE2(dots[0], dots[1]), stb__Min32_SSE2(dots[2], dots[3]));
++   mx = stb__Max32_SSE2(stb__Max32_SSE2(dots[0], dots[1]), stb__Max32_SSE2(dots[2], dots[3]));
++   mn = stb__Min32_SSE2(mn, _mm_shuffle_epi32(mn, _MM_SHUFFLE(1,0,3,2)));
++   mx = stb__Max32_SSE2(mx, _mm_shuffle_epi32(mx, _MM_SHUFFLE(1,0,3,2)));
++   mn = stb__Min32_SSE2(mn, _mm_shuffle_epi32(mn, _MM_SHUFFLE(2,3,0,1)));
++   mx = stb__Max32_SSE2(mx, _mm_shuffle_epi32(mx, _MM_SHUFFLE(2,3,0,1)));
++
++   {
++      const unsigned char *minp = block + stb__LowestBit(stb__MaskEq32_SSE2(dots, mn)) * 4;
++      const unsigned char *maxp = block + stb__LowestBit(stb__MaskEq32_SSE2(dots, mx)) * 4;
++
++      *pmax16 = stb__As16Bit(maxp[0],maxp[1],maxp[2]);
++      *pmin16 = stb__As16Bit(minp[0],minp[1],minp[2]);
++   }
++}
++
++static int stb__RefineBlock_SSE2(const stb__BlockSSE2 *sb, unsigned short *pmax16, unsigned short *pmin16, unsigned int mask)
++{
++   float f;
++   unsigned short oldMin, oldMax, min16, max16;
++   int xx,xy,yy;
++   int At1_r,At1_g,At1_b;
++   int At2_r,At2_g,At2_b;
++   const __m128i ones = _mm_set1_epi16(1);
++   const __m128i ones2[2] = { ones, ones };
++
++   oldMin = *pmin16;
++   oldMax = *pmax16;
++
++   At2_r = stb__Dot16_SSE2(sb->c[0], ones2);
++   At2_g = stb__Dot16_SSE2(sb->c[1], ones2);
++   At2_b = stb__Dot16_SSE2(sb->c[2], ones2);
++
++   if((mask ^ (mask<<2)) < 4) // all pixels have the same index?
++   {
++      // yes, linear system would be singular; solve using optimal
++      // single-color match on average color
++      int r = (At2_r + 8) >> 4;
++      int g = (At2_g + 8) >> 4;
++      int bl = (At2_b + 8) >> 4;
++
++      max16 = (stb__OMatch5[r][0]<<11) | (stb__OMatch6[g][0]<<5) | stb__OMatch5[bl][0];
++      min16 = (stb__OMatch5[r][1]<<11) | (stb__OMatch6[g][1]<<5) | stb__OMatch5[bl][1];
++   } else {
++      // Per pixel weights. Index 0, 1, 2, 3 maps to w1 = 3, 0, 2, 1, and w2 = 3 - w1.
++      const __m128i sel = _mm_setr_epi16(3<<0, 3<<2, 3<<4, 3<<6, 3<<8, 3<<10, 3<<12, (short)(3<<14));
++      const __m128i is1 = _mm_setr_epi16(1<<0, 1<<2, 1<<4, 1<<6, 1<<8, 1<<10, 1<<12, 1<<14);
++      const __m128i is2 = _mm_setr_epi16(2<<0, 2<<2, 2<<4, 2<<6, 2<<8, 2<<10, 2<<12, (short)(2<<14));
++      const __m128i three = _mm_set1_epi16(3);
++      __m128i w1[2], w2[2];
++      int h;
++
++      for (h=0;h<2;h++) {
++         __m128i idx = _mm_and_si128(_mm_set1_epi16((short)(mask >> (h*16))), sel);
++         __m128i w = three;
++         w = _mm_sub_epi16(w, _mm_and_si128(_mm_cmpeq_epi16(idx, is1), three));
++         w = _mm_sub_epi16(w, _mm_and_si128(_mm_cmpeq_epi16(idx, is2), ones));
++         w = _mm_sub_epi16(w, _mm_and_si128(_mm_cmpeq_epi16(idx, sel), _mm_set1_epi16(2)));
++         w1[h] = w;
++         w2[h] = _mm_sub_epi16(three, w);
++      }
++
++      At1_r = stb__Dot16_SSE2(sb->c[0], w1);
++      At1_g = stb__Dot16_SSE2(sb->c[1], w1);
++      At1_b = stb__Dot16_SSE2(sb->c[2], w1);
++
++      At2_r = 3*At2_r - At1_r;
++      At2_g = 3*At2_g - At1_g;
++      At2_b = 3*At2_b - At1_b;
++
++      // extract solutions and decide solvability
++      xx = stb__Dot16_SSE2(w1, w1);
++      yy = stb__Dot16_SSE2(w2, w2);
++      xy = stb__Dot16_SSE2(w1, w2);
++
++      f = 3.0f / 255.0f / (xx*yy - xy*xy);
++
++      max16 =  stb__Quantize5((At1_r*yy - At2_r * xy) * f) << 11;
++      max16 |= stb__Quantize6((At1_g*yy - At2_g * xy) * f) << 5;
++      max16 |= stb__Quantize5((At1_b*yy - At2_b * xy) * f) << 0;
++
++      min16 =  stb__Quantize5((At2_r*xx - At1_r * xy) * f) << 11;
++      min16 |= stb__Quantize6((At2_g*xx - At1_g * xy) * f) << 5;
++      min16 |= stb__Quantize5((At2_b*xx - At1_b * xy) * f) << 0;
++   }
++
++   *pmin16 = min16;
++   *pmax16 = max16;
++   return oldMin != min16 || oldMax != max16;
++}
++
++#endif // STB_DXT_SIMD == STB_DXT_SSE2
++
+ // Color block compression
+ static void stb__CompressColorBlock(unsigned char *dest, unsigned char *block, int mode)
+ {
+@@ -497,6 +838,14 @@
+       max16 = (stb__OMatch5[r][0]<<11) | (stb__OMatch6[g][0]<<5) | stb__OMatch5[b][0];
+       min16 = (stb__OMatch5[r][1]<<11) | (stb__OMatch6[g][1]<<5) | stb__OMatch5[b][1];
+    } else {
++#if STB_DXT_SIMD == STB_DXT_SSE2
++      stb__BlockSSE2 sb;
++      stb__LoadBlock_SSE2(&sb, block);
++      #define stb__OptimizeColorsBlock(block, pmax16, pmin16) stb__OptimizeColorsBlock_SSE2(&sb, block, pmax16, pmin16)
++      #define stb__MatchColorsBlock(block, color) stb__MatchColorsBlock_SSE2(&sb, color)
++      #define stb__RefineBlock(block, pmax16, pmin16, mask) stb__RefineBlock_SSE2(&sb, pmax16, pmin16, mask)
++#endif
++
+       // first step: PCA+map along principal axis
+       stb__OptimizeColorsBlock(block,&max16,&min16);
+       if (max16 != min16) {
+@@ -522,6 +871,12 @@
+          if(mask == lastmask)
+             break;
+       }
++
++#if STB_DXT_SIMD == STB_DXT_SSE2
++      #undef stb__OptimizeColorsBlock
++      #undef stb__MatchColorsBlock
++      #undef stb__RefineBlock
++#endif
+   }
+ 
+   // write the color block

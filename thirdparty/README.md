@@ -481,6 +481,22 @@ Files extracted from upstream source:
   - Except `main.cc`, `harfbuzz*.cc`, `harfrust.cc`, `failing-alloc.c`, `test*.cc`, `hb-gpu*.*`, `hb-wasm*.*`, `hb-harfrust.cc`, `wasm/*`, `ms-use/*`, `rust/*`
 
 
+## icbc
+
+- Upstream: https://github.com/castano/icbc
+- Version: 1.05 (f06e053377feaaa1fe6d433459f625622f8081d9, 2022)
+- License: MIT
+
+Files extracted from upstream source:
+
+- `icbc.h`
+- `LICENSE`
+
+Patches:
+
+- `0001-expose-single-color.patch` (Expose `compress_bc1_single_color()` so solid blocks can skip the full encoder)
+
+
 ## icu4c
 
 - Upstream: https://github.com/unicode-org/icu
@@ -864,6 +880,12 @@ Collection of single-file libraries used in Godot components.
   * Upstream: https://github.com/nothings/stb
   * Version: 1.01 (af1a5bc352164740c1cc1354942b1c6b72eacb8a, 2021)
   * License: Public Domain or Unlicense or MIT
+- `stb_dxt.h`
+  * Upstream: https://github.com/nothings/stb
+  * Version: 1.12 (2c980bb59875b0d32144a71867fbdebb2f77cd20, 2026)
+  * License: Public Domain or MIT
+  * Patches:
+    - `stb_dxt-0001-sse2.patch` (Add an SSE2 path for the color block encoder)
 - `yuv2rgb.h`
   * Upstream: http://wss.co.uk/pinknoise/yuv2rgb/ (to check)
   * Version: ?

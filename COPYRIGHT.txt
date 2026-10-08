@@ -363,6 +363,11 @@ Copyright: 2010-2022, Google, Inc.
  2013-2015, Alexei Podtelezhnikov
 License: HarfBuzz
 
+Files: thirdparty/icbc/*
+Comment: icbc
+Copyright: 2020-2022, Ignacio Castano
+License: Expat
+
 Files: thirdparty/icu4c/*
 Comment: International Components for Unicode
 Copyright: 2016-2024, Unicode, Inc.
@@ -535,7 +540,8 @@ Comment: SMOL-V
 Copyright: 2016-2024, Aras Pranckevicius
 License: Unlicense or Expat
 
-Files: thirdparty/misc/stb_rect_pack.h
+Files: thirdparty/misc/stb_dxt.h
+ thirdparty/misc/stb_rect_pack.h
 Comment: stb libraries
 Copyright: Sean Barrett
 License: Unlicense or Expat
